@@ -1,7 +1,6 @@
 numpy
-pandas
-pytest
-coverage
 scipy
+pytest
+pandas
 matplotlib
-
+coverage
