@@ -11,11 +11,7 @@ KEYWORDS         = "ccrvam"
 URL              = "https://github.com/DhyeyMavani2003/" + NAME
 README           = ".github/README.md"
 CLASSIFIERS      = [
-  "Programming Language :: Programming Language :: Cython",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Topic :: Software Development :: Libraries :: Python Modules",
-  "Programming Language :: Python",
-  
+
 ]
 INSTALL_REQUIRES = [
   "numpy",

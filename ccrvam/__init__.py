@@ -9,7 +9,7 @@ from ccrvam.checkerboard.genstatsim import (
         permutation_test_ccram,
     )
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __all__ = [
   "GenericCheckerboardCopula",
   "gen_contingency_to_case_form",
