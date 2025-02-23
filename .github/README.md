@@ -5,7 +5,7 @@
 [![PyPI version](https://badge.fury.io/py/ccrvam.png)](https://badge.fury.io/py/ccrvam)
 [![build](https://github.com/DhyeyMavani2003/ccrvam/actions/workflows/test.yaml/badge.svg)](https://github.com/DhyeyMavani2003/ccrvam/actions/workflows/test.yaml)
 [![Documentation Status](https://readthedocs.org/projects/ccrvam/badge/?version=latest)](https://ccrvam.readthedocs.io/en/latest/?badge=latest)
-[![Coverage Status](https://coveralls.io/repos/github/DhyeyMavani2003/ccrvam/badge.png?branch=master)](https://coveralls.io/github/DhyeyMavani2003/ccrvam?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/DhyeyMavani2003/ccrvam/badge.svg?branch=main)](https://coveralls.io/github/DhyeyMavani2003/ccrvam?branch=main)
 [![Built with PyPi Template](https://img.shields.io/badge/PyPi_Template-v0.7.0-blue.svg)](https://github.com/christophevg/pypi-template)
 
 ## Installation
