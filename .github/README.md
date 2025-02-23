@@ -2,7 +2,7 @@
 
 > Python implementation of Checkerboard Copula Regression-based Visualization and Association Measure (CCRVAM)
 
-[![PyPI version](https://badge.fury.io/py/ccrvam.png)](https://badge.fury.io/py/ccrvam)
+[![PyPI version](https://badge.fury.io/py/ccrvam.svg)](https://badge.fury.io/py/ccrvam)
 [![build](https://github.com/DhyeyMavani2003/ccrvam/actions/workflows/test.yaml/badge.svg)](https://github.com/DhyeyMavani2003/ccrvam/actions/workflows/test.yaml)
 [![Documentation Status](https://readthedocs.org/projects/ccrvam/badge/?version=latest)](https://ccrvam.readthedocs.io/en/latest/?badge=latest)
 [![Coverage Status](https://coveralls.io/repos/github/DhyeyMavani2003/ccrvam/badge.svg?branch=main)](https://coveralls.io/github/DhyeyMavani2003/ccrvam?branch=main)
