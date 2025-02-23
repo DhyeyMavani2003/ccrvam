@@ -1,0 +1,32 @@
+a_description_for_the_package: Python implementation of Checkerboard Copula Regression-based
+  Visualization and Association Measure
+classifiers:
+- 'Programming Language :: Programming Language :: Cython'
+- 'Programming Language :: Python :: Implementation :: CPython'
+- 'Topic :: Software Development :: Libraries :: Python Modules'
+- 'Programming Language :: Python'
+console_scripts: []
+first_year_of_publication: '2025'
+github_account: DhyeyMavani2003
+github_repo_name: ccrvam
+keywords_describing_the_package: ccrvam
+license: MIT
+package_module_name: ccrvam
+package_name: ccrvam
+package_tagline: Python implementation of Checkerboard Copula Regression-based Visualization
+  and Association Measure
+package_title: ccrvam
+readme: .github/README.md
+requires:
+- numpy
+- pandas
+- pytest
+- coverage
+- scipy
+- matplotlib
+scripts: []
+version: 0.8.0
+your_author_name: Dhyey Dharmendrakumar Mavani
+your_email_address: ddmavani2003@gmail.com
+your_full_name: Dhyey Dharmendrakumar Mavani
+your_name: Dhyey Mavani
