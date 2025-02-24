@@ -256,9 +256,9 @@ def test_predict_category_multi(generic_copula, source_categories, predictors, r
     np.testing.assert_array_equal(predicted, expected_categories)
 
 # Add Multi-axis Category Predictions Test
-def test_get_category_predictions_multi(generic_copula):
+def test_get_predictions_ccr(generic_copula):
     """Test category predictions with multiple conditioning axes."""
-    df = generic_copula.get_category_predictions_multi(
+    df = generic_copula.get_predictions_ccr(
         predictors=[2],
         response=1,
         axis_names={1: "Income", 2: "Education"}
@@ -306,10 +306,10 @@ def test_vectorized_consistency(generic_copula):
     vectorized = generic_copula.calculate_CCRAM_vectorized(1, 2)
     np.testing.assert_almost_equal(regular, vectorized)
         
-def test_calculate_scores_valid(generic_copula):
+def test_calculate_ccs_valid(generic_copula):
     """Test valid calculation of scores."""
-    scores_1 = generic_copula.calculate_scores(1)
-    scores_2 = generic_copula.calculate_scores(2)
+    scores_1 = generic_copula.calculate_ccs(1)
+    scores_2 = generic_copula.calculate_ccs(2)
 
     # Check exact expected values
     expected_scores_1 = np.array([0.125, 0.3125, 0.5, 0.6875, 0.875], dtype=np.float64)
@@ -318,15 +318,15 @@ def test_calculate_scores_valid(generic_copula):
     np.testing.assert_array_almost_equal(scores_1, expected_scores_1)
     np.testing.assert_array_almost_equal(scores_2, expected_scores_2)
     
-def test_calculate_scores_invalid_axis(generic_copula):
+def test_calculate_ccs_invalid_axis(generic_copula):
     """Test invalid axis handling for score calculation."""
     with pytest.raises(KeyError):
-        generic_copula.calculate_scores(3)  # Invalid axis index
+        generic_copula.calculate_ccs(3)  # Invalid axis index
 
-def test_calculate_variance_S_valid(generic_copula):
+def test_calculate_variance_ccs_valid(generic_copula):
     """Test valid calculation of score variance."""
-    var_1 = generic_copula.calculate_variance_S(1)
-    var_2 = generic_copula.calculate_variance_S(2)
+    var_1 = generic_copula.calculate_variance_ccs(1)
+    var_2 = generic_copula.calculate_variance_ccs(2)
     
     # Check return type
     assert isinstance(var_1, (float, np.float64))
@@ -341,10 +341,10 @@ def test_calculate_variance_S_valid(generic_copula):
     np.testing.assert_almost_equal(var_1, expected_var_1)
     np.testing.assert_almost_equal(var_2, expected_var_2)
 
-def test_calculate_variance_S_invalid_axis(generic_copula):
+def test_calculate_variance_ccs_invalid_axis(generic_copula):
     """Test invalid axis handling for variance calculation."""
     with pytest.raises(KeyError):
-        generic_copula.calculate_variance_S(3)  # Invalid axis index
+        generic_copula.calculate_variance_ccs(3)  # Invalid axis index
 
 def test_from_cases_creation(cases_4d, table_4d, expected_shape):
     """Test creation of copula from cases data."""
@@ -387,7 +387,7 @@ def test_from_cases_scores(cases_4d, expected_shape):
     
     # Test scores exist for each dimension
     for axis in range(4):
-        scores = cop.calculate_scores(axis+1)
+        scores = cop.calculate_ccs(axis+1)
         assert len(scores) == expected_shape[axis]
 
 def test_from_cases_variance(cases_4d, expected_shape):
@@ -395,7 +395,7 @@ def test_from_cases_variance(cases_4d, expected_shape):
     cop = GenericCheckerboardCopula.from_cases(cases_4d, expected_shape)
     
     # Test variance for the last dimension
-    variance = cop.calculate_variance_S(4)
+    variance = cop.calculate_variance_ccs(4)
     assert isinstance(variance, (float, np.float64))
     print(variance * 12)
     assert variance >= 0
@@ -489,7 +489,7 @@ def test_4d_scores_expected_values(cases_4d, expected_shape):
     cop = GenericCheckerboardCopula.from_cases(cases_4d, expected_shape)
     
     for axis in range(4):
-        scores = cop.calculate_scores(axis+1)
+        scores = cop.calculate_ccs(axis+1)
         assert len(scores) == expected_shape[axis]
         assert np.all(0 <= np.array(scores)) and np.all(np.array(scores) <= 1)
         # Scores should be monotonically increasing
@@ -509,7 +509,7 @@ def test_4d_category_predictions_dataframe(cases_4d, expected_shape):
     predictors = [1,2,3]
     response = 4
     
-    df = cop.get_category_predictions_multi(
+    df = cop.get_predictions_ccr(
         predictors=predictors,
         response=response,
         axis_names=axis_names

@@ -283,7 +283,7 @@ class GenericCheckerboardCopula:
             return 1.0 if ccram >= 1e-10 else 0.0
         return ccram / (12 * sigma_sq_S)
 
-    def get_category_predictions_multi(
+    def get_predictions_ccr(
         self,
         predictors: list,
         response: int,
@@ -307,7 +307,7 @@ class GenericCheckerboardCopula:
         
         Examples
         --------
-        >>> copula.get_category_predictions_multi([1, 2], 3)
+        >>> copula.get_predictions_ccr([1, 2], 3)
         
         Notes
         -----
@@ -348,7 +348,7 @@ class GenericCheckerboardCopula:
         
         return result
     
-    def calculate_scores(self, var_index):
+    def calculate_ccs(self, var_index):
         """Calculate checkerboard scores for the specified variable index.
         
         Parameters
@@ -364,7 +364,7 @@ class GenericCheckerboardCopula:
         parsed_axis = var_index - 1
         return self.scores[parsed_axis]
     
-    def calculate_variance_S(self, var_index):
+    def calculate_variance_ccs(self, var_index):
         """Calculate the variance of score S for the specified variable index.
         
         Parameters
