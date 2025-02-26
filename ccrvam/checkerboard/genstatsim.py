@@ -5,7 +5,7 @@ from typing import Union, Tuple, List
 import itertools
 import matplotlib.pyplot as plt
 import pandas as pd
-from .gencopula import GenericCheckerboardCopula
+from .gencopula import GenericCCRVAM
 from .utils import gen_contingency_to_case_form, gen_case_form_to_contingency
 
 @dataclass
@@ -112,8 +112,8 @@ def bootstrap_ccram(contingency_table: np.ndarray,
     metric_name = f"{'SCCRAM' if scaled else 'CCRAM'} ({predictors_str}) to X{response}"
     
     # Calculate observed value
-    gen_copula = GenericCheckerboardCopula.from_contingency_table(contingency_table)
-    observed_ccram = gen_copula.calculate_CCRAM_vectorized(predictors, response, scaled)
+    gen_copula = GenericCCRVAM.from_contingency_table(contingency_table)
+    observed_ccram = gen_copula.calculate_CCRAM(predictors, response, scaled)
     
     # Get all required axes in sorted order
     all_axes = sorted(parsed_predictors + [parsed_response])
@@ -152,8 +152,8 @@ def bootstrap_ccram(contingency_table: np.ndarray,
                     shape=contingency_table.shape,
                     axis_order=all_axes
                 )
-                copula = GenericCheckerboardCopula.from_contingency_table(table)
-                value = copula.calculate_CCRAM_vectorized(predictors, response, scaled)
+                copula = GenericCCRVAM.from_contingency_table(table)
+                value = copula.calculate_CCRAM(predictors, response, scaled)
                 results.append(value)
             return np.array(results)
         else:
@@ -162,8 +162,8 @@ def bootstrap_ccram(contingency_table: np.ndarray,
                 shape=contingency_table.shape,
                 axis_order=all_axes
             )
-            copula = GenericCheckerboardCopula.from_contingency_table(table)
-            return copula.calculate_CCRAM_vectorized(predictors, response, scaled)
+            copula = GenericCCRVAM.from_contingency_table(table)
+            return copula.calculate_CCRAM(predictors, response, scaled)
 
     res = bootstrap(
         data,
@@ -237,7 +237,7 @@ def _bootstrap_predict_category_multi(
                     shape=contingency_table.shape,
                     axis_order=all_axes  # Pass correct axis order
                 )
-                copula = GenericCheckerboardCopula.from_contingency_table(table)
+                copula = GenericCCRVAM.from_contingency_table(table)
                 pred = copula._predict_category_batched_multi(
                     source_categories, predictors, response
                 )
@@ -249,7 +249,7 @@ def _bootstrap_predict_category_multi(
                 shape=contingency_table.shape,
                 axis_order=all_axes  # Pass correct axis order
             )
-            copula = GenericCheckerboardCopula.from_contingency_table(table)
+            copula = GenericCCRVAM.from_contingency_table(table)
             return copula._predict_category_batched_multi(
                 source_categories, predictors, response
             )
@@ -521,8 +521,8 @@ def permutation_test_ccram(contingency_table: np.ndarray,
                     shape=contingency_table.shape,
                     axis_order=all_axes
                 )
-                copula = GenericCheckerboardCopula.from_contingency_table(table)
-                value = copula.calculate_CCRAM_vectorized(predictors, response, scaled)
+                copula = GenericCCRVAM.from_contingency_table(table)
+                value = copula.calculate_CCRAM(predictors, response, scaled)
                 results.append(value)
             return np.array(results)
         else:
@@ -531,8 +531,8 @@ def permutation_test_ccram(contingency_table: np.ndarray,
                 shape=contingency_table.shape,
                 axis_order=all_axes
             )
-            copula = GenericCheckerboardCopula.from_contingency_table(table)
-            return copula.calculate_CCRAM_vectorized(predictors, response, scaled)
+            copula = GenericCCRVAM.from_contingency_table(table)
+            return copula.calculate_CCRAM(predictors, response, scaled)
 
     perm = permutation_test(
         data,

@@ -2,11 +2,11 @@ import numpy as np
 import pandas as pd
 from .utils import gen_case_form_to_contingency
 
-class GenericCheckerboardCopula:
+class GenericCCRVAM:
     @classmethod
     def from_contingency_table(cls, contingency_table):
         """
-        Create a CheckerboardCopula instance from a contingency table.
+        Create a CCRVAM object instance from a contingency table.
 
         Parameters
         ----------
@@ -15,7 +15,7 @@ class GenericCheckerboardCopula:
 
         Returns
         -------
-        CheckerboardCopula
+        CCRVAM
             A new instance initialized with the probability matrix.
 
         Raises
@@ -33,7 +33,7 @@ class GenericCheckerboardCopula:
             [0, 10, 0],
             [0, 0, 20]
         ])
-        >>> copula = CheckerboardCopula.from_contingency_table(table)
+        >>> copula = GenericCCRVAM.from_contingency_table(table)
         """
         if not isinstance(contingency_table, np.ndarray):
             contingency_table = np.array(contingency_table)
@@ -51,7 +51,7 @@ class GenericCheckerboardCopula:
     @classmethod
     def from_cases(cls, cases, shape):
         """
-        Create a CheckerboardCopula instance from a list of cases.
+        Create a CCRVAM object instance from a list of cases.
 
         Parameters
         ----------
@@ -62,7 +62,7 @@ class GenericCheckerboardCopula:
 
         Returns
         -------
-        CheckerboardCopula
+        CCRVAM
             A new instance initialized with the probability matrix.
 
         Raises
@@ -80,7 +80,7 @@ class GenericCheckerboardCopula:
             [0, 1, 0],
             [0, 0, 2]
         ])
-        >>> copula = CheckerboardCopula.from_cases(cases, (3, 2, 3))
+        >>> copula = GenericCCRVAM.from_cases(cases, (3, 2, 3))
         """
         if not isinstance(cases, np.ndarray):
             cases = np.array(cases)
@@ -162,7 +162,7 @@ class GenericCheckerboardCopula:
         # Multiply by the smallest number that makes all entries close to integers
         scale = 1 / np.min(self.P[self.P > 0]) if np.any(self.P > 0) else 1
         return np.round(self.P * scale).astype(int)
-    
+        
     def calculate_CCRAM(self, predictors, response, scaled=False):
         """Calculate CCRAM with multiple conditioning axes.
         
@@ -179,9 +179,7 @@ class GenericCheckerboardCopula:
             predictors = [predictors]
             
         # Input validation
-        parsed_predictors = []
-        for pred_axis in predictors:
-            parsed_predictors.append(pred_axis - 1)
+        parsed_predictors = [pred_axis - 1 for pred_axis in predictors]
         parsed_response = response - 1
         
         if parsed_response >= self.ndim:
@@ -191,24 +189,24 @@ class GenericCheckerboardCopula:
             if axis >= self.ndim:
                 raise ValueError(f"parsed predictors contains {axis} which is out of bounds for array of dimension {self.ndim}")
         
-        # Create meshgrid of probabilities
-        probs = [self.marginal_pdfs[axis] for axis in parsed_predictors]
-        mesh = np.meshgrid(*probs, indexing='ij')
-        joint_prob = np.prod(mesh, axis=0)
+        # Calculate marginal pmf of predictors
+        sum_axes = tuple(set(range(self.ndim)) - set(parsed_predictors))
+        preds_pmf_prob = self.P.sum(axis=sum_axes)
         
         # Calculate regression values for each combination
         weighted_expectation = 0.0
         
-        for idx in np.ndindex(*[len(p) for p in probs]):
-            u_values = [self.marginal_cdfs[axis][i + 1] 
-                    for axis, i in zip(parsed_predictors, idx)]
+        for idx in np.ndindex(preds_pmf_prob.shape):
+            u_values = [self.marginal_cdfs[axis][idx[parsed_predictors.index(axis)] + 1] 
+                        for axis in parsed_predictors]
             
             regression_value = self._calculate_regression_batched(
                 target_axis=parsed_response,
                 given_axes=parsed_predictors,
                 given_values=u_values
             )[0]
-            weighted_expectation += joint_prob[idx] * (regression_value - 0.5) ** 2
+            
+            weighted_expectation += preds_pmf_prob[idx] * (regression_value - 0.5) ** 2
         
         ccram = 12 * weighted_expectation
         
@@ -216,69 +214,6 @@ class GenericCheckerboardCopula:
             return ccram
             
         sigma_sq_S = self._calculate_sigma_sq_S(parsed_response)
-        if sigma_sq_S < 1e-10:
-            return 1.0 if ccram >= 1e-10 else 0.0
-        return ccram / (12 * sigma_sq_S)
-
-    def calculate_CCRAM_vectorized(self, predictors, response, scaled=False):
-        """Calculate CCRAM with multiple conditioning axes. (Vectorized)
-        
-        Parameters
-        ----------
-        predictors : list
-            List of 1-indexed predictors axes for directional association
-        response : int
-            1-indexed target response axis for directional association
-        scaled : bool, optional
-            Whether to return standardized measure (default: False)
-        """
-        if not isinstance(predictors, (list, tuple)):
-            predictors = [predictors]
-            
-        # Input validation
-        parsed_predictors = []
-        for pred_axis in predictors:
-            parsed_predictors.append(pred_axis - 1)
-        parsed_response = response - 1
-        
-        if parsed_response >= self.ndim:
-            raise ValueError(f"parsed response {parsed_response} is out of bounds for array of dimension {self.ndim}")
-        
-        for axis in parsed_predictors:
-            if axis >= self.ndim:
-                raise ValueError(f"parsed predictors contains {axis} which is out of bounds for array of dimension {self.ndim}")
-        
-        # Create meshgrid of CDF values for each axis
-        cdf_values = [self.marginal_cdfs[axis][1:] for axis in parsed_predictors]
-        mesh = np.meshgrid(*cdf_values, indexing='ij')
-        
-        # Calculate joint probabilities 
-        joint_probs = np.ones_like(mesh[0])
-        for idx, (axis, pdf) in enumerate(zip(parsed_predictors, 
-                                            [self.marginal_pdfs[axis] for axis in parsed_predictors])):
-            # Create reshape dimensions based on position in parsed_predictors
-            reshape_dims = [1] * len(parsed_predictors)
-            reshape_dims[idx] = -1
-            joint_probs = joint_probs * pdf.reshape(reshape_dims)
-        
-        # Flatten meshgrid for vectorized regression
-        given_values = [m.flatten() for m in mesh]
-        
-        regression_values = self._calculate_regression_batched(
-            target_axis=parsed_response,
-            given_axes=parsed_predictors,
-            given_values=given_values
-        )
-        
-        weighted_expectation = np.sum(
-            joint_probs.flatten() * (regression_values - 0.5) ** 2
-        )
-        ccram = 12 * weighted_expectation
-        
-        if not scaled:
-            return ccram
-            
-        sigma_sq_S = self._calculate_sigma_sq_S_vectorized(parsed_response)
         if sigma_sq_S < 1e-10:
             return 1.0 if ccram >= 1e-10 else 0.0
         return ccram / (12 * sigma_sq_S)
