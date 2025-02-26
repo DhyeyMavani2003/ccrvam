@@ -50,8 +50,8 @@ latex_elements = {
 latex_documents = [
     (
         'index',
-        'discopula.tex',
-        'Discopula Documentation',
+        'ccrvam.tex',
+        'CCRVAM Documentation',
         author,
         'manual'
     ),
@@ -64,4 +64,4 @@ def linkcode_resolve(domain, info):
     if not info['module']:
         return None
     filename = info['module'].replace('.', '/')
-    return f"https://github.com/dmavani25/discopula/blob/master/{filename}.py"
+    return f"https://github.com/DhyeyMavani2003/ccrvam/blob/master/{filename}.py"

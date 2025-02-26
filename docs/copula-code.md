@@ -1,6 +1,6 @@
-# Generic Checkerboard Copula API
+# Generic CCRVAM API
 
-```{autodoc2-object} ccrvam.checkerboard.gencopula
+```{autodoc2-object} ccrvam.checkerboard.genccrvam
 render_plugin = "myst"
 no_index = true
 ```

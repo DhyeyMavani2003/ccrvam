@@ -33,7 +33,7 @@ class GenericCCRVAM:
             [0, 10, 0],
             [0, 0, 20]
         ])
-        >>> copula = GenericCCRVAM.from_contingency_table(table)
+        >>> ccrvam = GenericCCRVAM.from_contingency_table(table)
         """
         if not isinstance(contingency_table, np.ndarray):
             contingency_table = np.array(contingency_table)
@@ -80,7 +80,7 @@ class GenericCCRVAM:
             [0, 1, 0],
             [0, 0, 2]
         ])
-        >>> copula = GenericCCRVAM.from_cases(cases, (3, 2, 3))
+        >>> ccrvam = GenericCCRVAM.from_cases(cases, (3, 2, 3))
         """
         if not isinstance(cases, np.ndarray):
             cases = np.array(cases)
@@ -242,7 +242,7 @@ class GenericCCRVAM:
         
         Examples
         --------
-        >>> copula.get_predictions_ccr([1, 2], 3)
+        >>> ccrvam.get_predictions_ccr([1, 2], 3)
         
         Notes
         -----
@@ -419,7 +419,7 @@ class GenericCCRVAM:
                 for j in range(1, len(marginal_cdf))]
     
     def _lambda_function(self, u, ul, uj):
-        """Helper Function: Calculate lambda function for checkerboard copula."""
+        """Helper Function: Calculate lambda function for checkerboard ccrvam."""
         if u <= ul:
             return 0.0
         elif u >= uj:

@@ -4,7 +4,7 @@ import pytest
 from ccrvam import GenericCCRVAM
 
 @pytest.fixture
-def generic_copula():
+def generic_ccrvam():
     """Fixture providing a GenericCCRVAM instance with test data."""
     P = np.array([
         [0, 0, 2/8],
@@ -140,15 +140,15 @@ def cases_4d():
     
 @pytest.fixture
 def expected_shape():
-    """Fixture providing expected shape for the copula."""
+    """Fixture providing expected shape for the ccrvam."""
     return (2, 3, 2, 6)
 
 # Basic Creation Tests
 def test_from_contingency_table_valid(contingency_table):
     """Test valid contingency table initialization."""
-    copula = GenericCCRVAM.from_contingency_table(contingency_table)
+    ccrvam = GenericCCRVAM.from_contingency_table(contingency_table)
     expected_P = contingency_table / contingency_table.sum()
-    np.testing.assert_array_almost_equal(copula.P, expected_P)
+    np.testing.assert_array_almost_equal(ccrvam.P, expected_P)
 
 @pytest.mark.parametrize("invalid_table,error_msg", [
     (np.array([[1, 2], [3, -1]]), "Contingency table cannot contain negative values"),
@@ -163,13 +163,13 @@ def test_invalid_contingency_tables(invalid_table, error_msg):
 @pytest.mark.parametrize("expected_cdf_0, expected_cdf_1", [
     ([0, 2/8, 3/8, 5/8, 6/8, 1], [0, 2/8, 4/8, 1])
 ])
-def test_marginal_cdfs(generic_copula, expected_cdf_0, expected_cdf_1):
+def test_marginal_cdfs(generic_ccrvam, expected_cdf_0, expected_cdf_1):
     """Test marginal CDF calculations."""
-    np.testing.assert_almost_equal(generic_copula.marginal_cdfs[0], expected_cdf_0)
-    np.testing.assert_almost_equal(generic_copula.marginal_cdfs[1], expected_cdf_1)
+    np.testing.assert_almost_equal(generic_ccrvam.marginal_cdfs[0], expected_cdf_0)
+    np.testing.assert_almost_equal(generic_ccrvam.marginal_cdfs[1], expected_cdf_1)
 
 # Conditional PMF Tests
-def test_conditional_pmfs(generic_copula):
+def test_conditional_pmfs(generic_ccrvam):
     """Test conditional PMF calculations."""
     expected_1_given_0 = np.array([
         [0, 0, 1],
@@ -178,7 +178,7 @@ def test_conditional_pmfs(generic_copula):
         [0, 1, 0],
         [0, 0, 1]
     ])
-    pmf, _ = generic_copula._calculate_conditional_pmf(1, [0])
+    pmf, _ = generic_ccrvam._calculate_conditional_pmf(1, [0])
     np.testing.assert_array_almost_equal(pmf, expected_1_given_0)
 
 # Regression Tests
@@ -188,9 +188,9 @@ def test_conditional_pmfs(generic_copula):
     ([3/8], [0], 1, 6/16),
     ([1.0], [0], 1, 12/16),
 ])
-def test_calculate_regression(generic_copula, given_values, given_axes, target_axis, expected_value):
+def test_calculate_regression(generic_ccrvam, given_values, given_axes, target_axis, expected_value):
     """Test regression calculation with multiple conditioning axes."""
-    calculated = generic_copula._calculate_regression_batched(
+    calculated = generic_ccrvam._calculate_regression_batched(
         target_axis=target_axis,
         given_axes=given_axes,
         given_values=given_values
@@ -202,9 +202,9 @@ def test_calculate_regression(generic_copula, given_values, given_axes, target_a
     ([1], 2, 0.84375),          # Single axis X1->X2
     ([2], 1, 0.0),              # Single axis X2->X1
 ])
-def test_calculate_CCRAM(generic_copula, predictors, response, expected_ccram):
+def test_calculate_CCRAM(generic_ccrvam, predictors, response, expected_ccram):
     """Test CCRAM calculations with multiple conditioning axes."""
-    calculated = generic_copula.calculate_CCRAM(predictors, response, scaled=False)
+    calculated = generic_ccrvam.calculate_CCRAM(predictors, response, scaled=False)
     np.testing.assert_almost_equal(calculated, expected_ccram)
 
 # SCCRAM Tests
@@ -212,9 +212,9 @@ def test_calculate_CCRAM(generic_copula, predictors, response, expected_ccram):
     ([1], 2, 0.84375/(12*0.0703125)),          # Single axis X1->X2
     ([2], 1, 0.0),                             # Single axis X2->X1
 ])
-def test_calculate_SCCRAM(generic_copula, predictors, response, expected_sccram):
+def test_calculate_SCCRAM(generic_ccrvam, predictors, response, expected_sccram):
     """Test SCCRAM calculations with multiple conditioning axes."""
-    calculated = generic_copula.calculate_CCRAM(predictors, response, scaled=True)
+    calculated = generic_ccrvam.calculate_CCRAM(predictors, response, scaled=True)
     np.testing.assert_almost_equal(calculated, expected_sccram)
 
 # Category Prediction Tests
@@ -226,9 +226,9 @@ def test_calculate_SCCRAM(generic_copula, predictors, response, expected_sccram)
     ([3], [0], 1, [1]),
     ([4], [0], 1, [2]),     
 ])
-def test_predict_category_multi(generic_copula, source_categories, predictors, response, expected_categories):
+def test_predict_category_multi(generic_ccrvam, source_categories, predictors, response, expected_categories):
     """Test category prediction with multiple conditioning axes."""
-    predicted = generic_copula._predict_category_batched_multi(
+    predicted = generic_ccrvam._predict_category_batched_multi(
         source_categories=source_categories,
         predictors=predictors,
         response=response
@@ -236,9 +236,9 @@ def test_predict_category_multi(generic_copula, source_categories, predictors, r
     np.testing.assert_array_equal(predicted, expected_categories)
 
 # Add Multi-axis Category Predictions Test
-def test_get_predictions_ccr(generic_copula):
+def test_get_predictions_ccr(generic_ccrvam):
     """Test category predictions with multiple conditioning axes."""
-    df = generic_copula.get_predictions_ccr(
+    df = generic_ccrvam.get_predictions_ccr(
         predictors=[2],
         response=1,
         axis_names={1: "Income", 2: "Education"}
@@ -249,24 +249,24 @@ def test_get_predictions_ccr(generic_copula):
     assert "Education Category" in df.columns
 
 # Add Consistency Tests for Multi-axis
-def test_multi_axis_consistency(generic_copula):
+def test_multi_axis_consistency(generic_ccrvam):
     """Test consistency between single and multiple axis calculations."""
-    single_axis = generic_copula.calculate_CCRAM(1, 2)
-    multi_axis = generic_copula.calculate_CCRAM([1], 2)
+    single_axis = generic_ccrvam.calculate_CCRAM(1, 2)
+    multi_axis = generic_ccrvam.calculate_CCRAM([1], 2)
     np.testing.assert_almost_equal(single_axis, multi_axis)
 
 # Invalid Cases Tests
-def test_invalid_predictions(generic_copula):
+def test_invalid_predictions(generic_ccrvam):
     """Test invalid prediction handling."""
     with pytest.raises(IndexError):
-        generic_copula._predict_category(5, 0, 1)
+        generic_ccrvam._predict_category(5, 0, 1)
 
 # Special Cases Tests
-def test_prediction_special_cases(generic_copula):
+def test_prediction_special_cases(generic_ccrvam):
     """Test edge cases in predictions."""
-    single_pred = generic_copula._predict_category_batched_multi(np.array([0]), 0, 1)
+    single_pred = generic_ccrvam._predict_category_batched_multi(np.array([0]), 0, 1)
     assert len(single_pred) == 1
-    assert single_pred[0] == generic_copula._predict_category(0, 0, 1)
+    assert single_pred[0] == generic_ccrvam._predict_category(0, 0, 1)
 
 # Consistency Tests
 def test_calculation_consistency(contingency_table):
@@ -280,10 +280,10 @@ def test_calculation_consistency(contingency_table):
         cop2.calculate_CCRAM(1, 2)
     )
         
-def test_calculate_ccs_valid(generic_copula):
+def test_calculate_ccs_valid(generic_ccrvam):
     """Test valid calculation of scores."""
-    scores_1 = generic_copula.calculate_ccs(1)
-    scores_2 = generic_copula.calculate_ccs(2)
+    scores_1 = generic_ccrvam.calculate_ccs(1)
+    scores_2 = generic_ccrvam.calculate_ccs(2)
 
     # Check exact expected values
     expected_scores_1 = np.array([0.125, 0.3125, 0.5, 0.6875, 0.875], dtype=np.float64)
@@ -292,15 +292,15 @@ def test_calculate_ccs_valid(generic_copula):
     np.testing.assert_array_almost_equal(scores_1, expected_scores_1)
     np.testing.assert_array_almost_equal(scores_2, expected_scores_2)
     
-def test_calculate_ccs_invalid_axis(generic_copula):
+def test_calculate_ccs_invalid_axis(generic_ccrvam):
     """Test invalid axis handling for score calculation."""
     with pytest.raises(KeyError):
-        generic_copula.calculate_ccs(3)  # Invalid axis index
+        generic_ccrvam.calculate_ccs(3)  # Invalid axis index
 
-def test_calculate_variance_ccs_valid(generic_copula):
+def test_calculate_variance_ccs_valid(generic_ccrvam):
     """Test valid calculation of score variance."""
-    var_1 = generic_copula.calculate_variance_ccs(1)
-    var_2 = generic_copula.calculate_variance_ccs(2)
+    var_1 = generic_ccrvam.calculate_variance_ccs(1)
+    var_2 = generic_ccrvam.calculate_variance_ccs(2)
     
     # Check return type
     assert isinstance(var_1, (float, np.float64))
@@ -315,13 +315,13 @@ def test_calculate_variance_ccs_valid(generic_copula):
     np.testing.assert_almost_equal(var_1, expected_var_1)
     np.testing.assert_almost_equal(var_2, expected_var_2)
 
-def test_calculate_variance_ccs_invalid_axis(generic_copula):
+def test_calculate_variance_ccs_invalid_axis(generic_ccrvam):
     """Test invalid axis handling for variance calculation."""
     with pytest.raises(KeyError):
-        generic_copula.calculate_variance_ccs(3)  # Invalid axis index
+        generic_ccrvam.calculate_variance_ccs(3)  # Invalid axis index
 
 def test_from_cases_creation(cases_4d, table_4d, expected_shape):
-    """Test creation of copula from cases data."""
+    """Test creation of ccrvam from cases data."""
     cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
     assert cop.ndim == 4
     assert cop.P.shape == expected_shape

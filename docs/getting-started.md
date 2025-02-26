@@ -45,7 +45,7 @@ For detailed examples in Jupyter Notebooks and beyond (organized by functionalit
 
 ## Features
 
-- Construction of checkerboard copulas from contingency tables and/or list of cases
+- Construction of CCRVAM objects from contingency tables and/or list of cases
 - Calculation of marginal distributions and CDFs
 - Computation of Checkerboard Copula Regression (CCR) and Prediction based on CCR
 - Implementation of Checkerboard Copula Regression Association Measure (CCRAM) and the Scaled CCRAM (SCCRAM)
