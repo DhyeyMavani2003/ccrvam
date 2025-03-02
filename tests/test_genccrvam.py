@@ -25,20 +25,20 @@ def contingency_table():
         [0, 10, 0],
         [0, 0, 20]
     ])
-    
+
 @pytest.fixture
 def table_4d():
     """Fixture for 4D contingency table."""
     table = np.zeros((2,3,2,6), dtype=int)
     
     # RDA Row 1 [0,2,0,*]
-    table[0,2,0,1] = 1
-    table[0,2,0,4] = 2
-    table[0,2,0,5] = 4
+    table[0,0,0,1] = 1
+    table[0,0,0,4] = 2
+    table[0,0,0,5] = 4
     
     # RDA Row 2 [0,2,1,*]
-    table[0,2,1,3] = 1
-    table[0,2,1,4] = 3
+    table[0,0,1,3] = 1
+    table[0,0,1,4] = 3
     
     # RDA Row 3 [0,1,0,*]
     table[0,1,0,1] = 2
@@ -52,22 +52,22 @@ def table_4d():
     table[0,1,1,5] = 1
     
     # RDA Row 5 [0,0,0,*]
-    table[0,0,0,4] = 2 
-    table[0,0,0,5] = 2
+    table[0,2,0,4] = 2 
+    table[0,2,0,5] = 2
     
     # RDA Row 6 [0,0,1,*]
-    table[0,0,1,2] = 1
-    table[0,0,1,3] = 1
-    table[0,0,1,4] = 3
+    table[0,2,1,2] = 1
+    table[0,2,1,3] = 1
+    table[0,2,1,4] = 3
     
     # RDA Row 7 [1,2,0,*]
-    table[1,2,0,2] = 3
-    table[1,2,0,4] = 1
-    table[1,2,0,5] = 2
+    table[1,0,0,2] = 3
+    table[1,0,0,4] = 1
+    table[1,0,0,5] = 2
     
     # RDA Row 8 [1,2,1,*]
-    table[1,2,1,1] = 1
-    table[1,2,1,4] = 3
+    table[1,0,1,1] = 1
+    table[1,0,1,4] = 3
     
     # RDA Row 9 [1,1,0,*]
     table[1,1,0,1] = 3
@@ -84,58 +84,61 @@ def table_4d():
     table[1,1,1,5] = 1
     
     # RDA Row 11 [1,0,0,*]
-    table[1,0,0,0] = 2
-    table[1,0,0,1] = 2
-    table[1,0,0,2] = 1
-    table[1,0,0,3] = 5
-    table[1,0,0,4] = 2
+    table[1,2,0,0] = 2
+    table[1,2,0,1] = 2
+    table[1,2,0,2] = 1
+    table[1,2,0,3] = 5
+    table[1,2,0,4] = 2
     
     # RDA Row 12 [1,0,1,*]
-    table[1,0,1,0] = 2
-    table[1,0,1,2] = 2
-    table[1,0,1,3] = 3
+    table[1,2,1,0] = 2
+    table[1,2,1,2] = 2
+    table[1,2,1,3] = 3
     
     return table
 
 @pytest.fixture
 def cases_4d():
-    """Fixture for 4D case-form data in 1-indexed format."""
+    """
+    Fixture for 4D case-form data 0-indexed here for utils 
+    because they are supposed to be internal converter functions.
+    """
     return np.array([
         # RDA Row 1
-        [1,3,1,2],[1,3,1,5],[1,3,1,5],
-        [1,3,1,6],[1,3,1,6],[1,3,1,6],[1,3,1,6],
+        [0,0,0,1],[0,0,0,4],[0,0,0,4],
+        [0,0,0,5], [0,0,0,5],[0,0,0,5],[0,0,0,5],
         # RDA Row 2
-        [1,3,2,4],[1,3,2,5],[1,3,2,5],[1,3,2,5],
+        [0,0,1,3],[0,0,1,4],[0,0,1,4],[0,0,1,4],
         # RDA Row 3
-        [1,2,1,2],[1,2,1,2],[1,2,1,3],[1,2,1,3],[1,2,1,3],
-        [1,2,1,5],[1,2,1,5],[1,2,1,5],[1,2,1,5],[1,2,1,5],[1,2,1,5],
-        [1,2,1,6],[1,2,1,6],[1,2,1,6],[1,2,1,6],
+        [0,1,0,1],[0,1,0,1],[0,1,0,2],[0,1,0,2],[0,1,0,2],
+        [0,1,0,4],[0,1,0,4],[0,1,0,4],[0,1,0,4],[0,1,0,4],[0,1,0,4],
+        [0,1,0,5],[0,1,0,5],[0,1,0,5],[0,1,0,5],
         # RDA Row 4
-        [1,2,2,2],[1,2,2,4],[1,2,2,4],[1,2,2,6],
+        [0,1,1,1],[0,1,1,3],[0,1,1,3],[0,1,1,5],
         # RDA Row 5
-        [1,1,1,5],[1,1,1,5],[1,1,1,6],[1,1,1,6],
+        [0,2,0,4],[0,2,0,4],[0,2,0,5],[0,2,0,5],
         # RDA Row 6
-        [1,1,2,3],[1,1,2,4],[1,1,2,5],[1,1,2,5],[1,1,2,5],
+        [0,2,1,2],[0,2,1,3],[0,2,1,4],[0,2,1,4],[0,2,1,4],
         # RDA Row 7
-        [2,3,1,3],[2,3,1,3],[2,3,1,3],[2,3,1,5],[2,3,1,6],[2,3,1,6],
+        [1,0,0,2],[1,0,0,2],[1,0,0,2],[1,0,0,4],[1,0,0,5],[1,0,0,5],
         # RDA Row 8
-        [2,3,2,2],[2,3,2,5],[2,3,2,5],[2,3,2,5],
+        [1,0,1,1],[1,0,1,4],[1,0,1,4],[1,0,1,4],
         # RDA Row 9
-        [2,2,1,2],[2,2,1,2],[2,2,1,2],[2,2,1,3],[2,2,1,3],[2,2,1,3],[2,2,1,3],
-        [2,2,1,4],[2,2,1,4],[2,2,1,4],[2,2,1,4],[2,2,1,4],
-        [2,2,1,5],[2,2,1,5],[2,2,1,5],[2,2,1,5],[2,2,1,5],[2,2,1,5],
-        [2,2,1,6],[2,2,1,6],
+        [1,1,0,1],[1,1,0,1],[1,1,0,1],[1,1,0,2],[1,1,0,2],[1,1,0,2],[1,1,0,2],
+        [1,1,0,3],[1,1,0,3],[1,1,0,3],[1,1,0,3],[1,1,0,3],
+        [1,1,0,4],[1,1,0,4],[1,1,0,4],[1,1,0,4],[1,1,0,4],[1,1,0,4],
+        [1,1,0,5],[1,1,0,5],
         # RDA Row 10
-        [2,2,2,1],[2,2,2,2],[2,2,2,2],[2,2,2,2],[2,2,2,2],
-        [2,2,2,3],[2,2,2,3],[2,2,2,3],[2,2,2,3],
-        [2,2,2,4],[2,2,2,4],[2,2,2,4],[2,2,2,6],
+        [1,1,1,0],[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1],
+        [1,1,1,2],[1,1,1,2],[1,1,1,2],[1,1,1,2],
+        [1,1,1,3],[1,1,1,3],[1,1,1,3],[1,1,1,5],
         # RDA Row 11
-        [2,1,1,1],[2,1,1,1],[2,1,1,2],[2,1,1,2],[2,1,1,3],
-        [2,1,1,4],[2,1,1,4],[2,1,1,4],[2,1,1,4],[2,1,1,4],
-        [2,1,1,5],[2,1,1,5],
+        [1,2,0,0],[1,2,0,0],[1,2,0,1],[1,2,0,1],[1,2,0,2],
+        [1,2,0,3],[1,2,0,3],[1,2,0,3],[1,2,0,3],[1,2,0,3],
+        [1,2,0,4],[1,2,0,4],
         # RDA Row 12
-        [2,1,2,1],[2,1,2,1],[2,1,2,3],[2,1,2,3],
-        [2,1,2,4],[2,1,2,4],[2,1,2,4]
+        [1,2,1,0],[1,2,1,0],[1,2,1,2],[1,2,1,2],
+        [1,2,1,3],[1,2,1,3],[1,2,1,3]
     ])
     
 @pytest.fixture
@@ -322,11 +325,14 @@ def test_calculate_variance_ccs_invalid_axis(generic_ccrvam):
 
 def test_from_cases_creation(cases_4d, table_4d, expected_shape):
     """Test creation of ccrvam from cases data."""
-    cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
+    # Upping cases by 1 to account for 1-indexing
+    cop = GenericCCRVAM.from_cases(cases_4d+1, expected_shape)
     assert cop.ndim == 4
     assert cop.P.shape == expected_shape
     assert np.all(cop.P >= 0)
     assert np.isclose(cop.P.sum(), 1.0)
+    print(cop.contingency_table)
+    print(table_4d)
     assert np.all(cop.contingency_table == table_4d)
 
 def test_from_cases_marginal_pdfs(cases_4d, expected_shape):
@@ -398,7 +404,8 @@ def test_from_cases_contingency_table(cases_4d, expected_shape):
     
 def test_4d_ccram_calculations(cases_4d, expected_shape):
     """Test CCRAM calculations for 4D case with multiple conditioning axes."""
-    cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
+    # Upping cases by 1 to account for 1-indexing
+    cop = GenericCCRVAM.from_cases(cases_4d+1, expected_shape)
     
     # Test various axis combinations
     test_cases = [
@@ -422,7 +429,8 @@ def test_4d_ccram_calculations(cases_4d, expected_shape):
         assert np.isclose(ccram, expected)
 
 def test_4d_full_sccram_calculations(cases_4d, expected_shape):
-    cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
+    # Upping cases by 1 to account for 1-indexing
+    cop = GenericCCRVAM.from_cases(cases_4d+1, expected_shape)
     sccram = cop.calculate_CCRAM([1,2,3], 4, scaled=True)
     assert 0 <= sccram <= 1
     assert np.isclose(sccram, 0.26870972725631526)
