@@ -4,3 +4,4 @@ pytest
 pandas
 matplotlib
 coverage
+seaborn

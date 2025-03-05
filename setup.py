@@ -3,7 +3,7 @@ import re
 import setuptools
 
 NAME             = "ccrvam"
-AUTHOR           = "Dhyey Mavani"
+AUTHOR           = "Dhyey Mavani, Daeyoung Kim, Shu-Min Liao"
 AUTHOR_EMAIL     = "ddmavani2003@gmail.com"
 DESCRIPTION      = "Python implementation of Checkerboard Copula Regression-based Visualization and Association Measure"
 LICENSE          = "MIT"
@@ -20,6 +20,7 @@ INSTALL_REQUIRES = [
   "coverage",
   "scipy",
   "matplotlib",
+  "seaborn"
   
 ]
 ENTRY_POINTS = {

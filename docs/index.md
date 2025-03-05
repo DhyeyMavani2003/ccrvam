@@ -8,6 +8,12 @@
 [![Coverage Status](https://coveralls.io/repos/github/DhyeyMavani2003/ccrvam/badge.svg?branch=main)](https://coveralls.io/github/DhyeyMavani2003/ccrvam?branch=main)
 [![Built with PyPi Template](https://img.shields.io/badge/PyPi_Template-v0.7.0-blue.svg)](https://github.com/christophevg/pypi-template)
 
+## Authors
+
+- Dhyey Mavani
+- Daeyoung Kim 
+- Shu-Min Liao
+
 ## Installation
 
 This package (ccrvam) is hosted on PyPi, so for installation add the following line at the top of your Jupyter notebook!
@@ -63,6 +69,15 @@ For detailed examples in Jupyter Notebooks and beyond (organized by functionalit
 - Permutation testing functionality for CCRAM & SCCRAM
 - Vectorized implementations for improved performance
 - Rigorous Edge-case Handling & Unit Testing with Pytest 
+
+## Citation
+
+If you use this package in your research, please cite the following papers:
+
+1. Zheng Wei and Daeyoung Kim (2021). On exploratory analytic method for multi-way contingency tables with an ordinal response variable and categorical explanatory variables. *Journal of Multivariate Analysis*, 186, 104793. https://doi.org/10.1016/j.jmva.2021.104793
+
+2. Shu-Min Liao, Li Wang, Daeyoung Kim (2024). Visualization of Dependence in Multidimensional Contingency Tables with an Ordinal Dependent Variable via Copula Regression. In *Dependent Data in Social Sciences Research: Forms, Issues, and Methods of Analysis*, Second edition, Mark Stemmler, Wolfgang Wiedermann, and Francis L. Huang, eds. Springer New York LLC, pp. 517-538
+
 
 ## Contents
 

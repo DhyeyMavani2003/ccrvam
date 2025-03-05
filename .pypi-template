@@ -12,7 +12,7 @@ package_tagline: Python implementation of Checkerboard Copula Regression-based V
   and Association Measure
 package_title: ccrvam
 readme: .github/README.md
-requires: ["numpy", "pytest", "coverage", "scipy", "matplotlib", "pandas"]
+requires: ["numpy", "pytest", "coverage", "scipy", "matplotlib", "pandas", "seaborn"]
 scripts: []
 version: 0.8.0
 your_author_name: Dhyey Dharmendrakumar Mavani
