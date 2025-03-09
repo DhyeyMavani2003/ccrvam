@@ -222,7 +222,7 @@ class GenericCCRVAM:
         self,
         predictors: list,
         response: int,
-        axis_names: dict = None
+        variable_names: dict = None
     ) -> pd.DataFrame:
         """Get category predictions with multiple conditioning axes.
         
@@ -232,8 +232,8 @@ class GenericCCRVAM:
             List of 1-indexed predictors axes for category prediction
         response : int
             1-indexed target response axis for category prediction
-        axis_names : dict, optional
-            Dictionary mapping 1-indexed axis indices to names (default: None)
+        variable_names : dict, optional
+            Dictionary mapping 1-indexed variable indices to names (default: None)
             
         Returns
         -------
@@ -249,8 +249,8 @@ class GenericCCRVAM:
         The DataFrame contains columns for each source axis category and the 
         predicted target axis category. The categories are 1-indexed.
         """
-        if axis_names is None:
-            axis_names = {i+1: f"X{i+1}" for i in range(self.ndim)}
+        if variable_names is None:
+            variable_names = {i+1: f"X{i+1}" for i in range(self.ndim)}
         
         # Input validation
         parsed_predictors = []
@@ -278,8 +278,8 @@ class GenericCCRVAM:
         # Create DataFrame
         result = pd.DataFrame()
         for axis, cats in zip(parsed_predictors, flat_categories):
-            result[f'{axis_names[axis+1]} Category'] = cats + 1
-        result[f'Predicted {axis_names[parsed_response+1]} Category'] = predictions + 1
+            result[f'{variable_names[axis+1]} Category'] = cats + 1
+        result[f'Predicted {variable_names[parsed_response+1]} Category'] = predictions + 1
         
         return result
     

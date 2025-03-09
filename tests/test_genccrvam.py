@@ -244,7 +244,7 @@ def test_get_predictions_ccr(generic_ccrvam):
     df = generic_ccrvam.get_predictions_ccr(
         predictors=[2],
         response=1,
-        axis_names={1: "Income", 2: "Education"}
+        variable_names={1: "Income", 2: "Education"}
     )
     
     assert isinstance(df, pd.DataFrame)
@@ -486,7 +486,7 @@ def test_4d_category_predictions_dataframe(cases_4d, expected_shape):
     """Test category predictions output format for 4D case."""
     cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
     
-    axis_names = {
+    var_names = {
         1: "First",
         2: "Second", 
         3: "Third",
@@ -499,11 +499,11 @@ def test_4d_category_predictions_dataframe(cases_4d, expected_shape):
     df = cop.get_predictions_ccr(
         predictors=predictors,
         response=response,
-        axis_names=axis_names
+        variable_names=var_names
     )
     
     # Check DataFrame structure
     assert isinstance(df, pd.DataFrame)
     for axis in predictors:
-        assert f"{axis_names[axis]} Category" in df.columns
-    assert f"Predicted {axis_names[response]} Category" in df.columns
+        assert f"{var_names[axis]} Category" in df.columns
+    assert f"Predicted {var_names[response]} Category" in df.columns
