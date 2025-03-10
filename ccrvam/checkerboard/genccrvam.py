@@ -549,6 +549,11 @@ class GenericCCRVAM:
             The figure containing the plots
         """
         
+        # Prevent automatic display in Jupyter by turning off interactive mode temporarily
+        was_interactive = plt.isinteractive()
+        if was_interactive:
+            plt.ioff()
+        
         n_predictors = len(predictors)
         
         if n_predictors < 2:
@@ -592,7 +597,11 @@ class GenericCCRVAM:
                 
             # Save with appropriate format
             fig.savefig(save_path, dpi=dpi, bbox_inches='tight')
-            
+        
+        # Restore interactive mode if it was on
+        if was_interactive:
+            plt.ion()
+                
         return fig
 
     def _plot_2d_heatmap(self, predictions_df, predictors, response, 
