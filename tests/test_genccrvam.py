@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 import pytest
 import matplotlib.pyplot as plt
-import os, tempfile
+import os 
+import tempfile
 from ccrvam import GenericCCRVAM
 
 @pytest.fixture
