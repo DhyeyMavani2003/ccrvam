@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
 from .utils import gen_case_form_to_contingency
 
 class GenericCCRVAM:
@@ -515,3 +518,202 @@ class GenericCCRVAM:
             u_target_values,
             self.marginal_cdfs[response]
         )
+        
+    def plot_ccr_predictions(self, predictors, response, variable_names=None, 
+                            figsize=None, cmap='YlOrRd', save_path=None, 
+                            dpi=300, **kwargs):
+        """Plot CCR predictions for multiple predictors.
+        
+        Parameters
+        ----------
+        predictors : list
+            List of 1-indexed predictor axes
+        response : int
+            1-indexed response axis
+        variable_names : dict, optional
+            Dictionary mapping indices to variable names
+        figsize : tuple, optional
+            Figure size (width, height)
+        cmap : str, optional
+            Matplotlib colormap name
+        save_path : str, optional
+            Path to save the plot (e.g. 'plots/ccr_pred.pdf')
+        dpi : int, optional
+            Resolution for saving raster images (png, jpg)
+        **kwargs : dict
+            Additional arguments passed to plotting functions
+            
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The figure containing the plots
+        """
+        
+        n_predictors = len(predictors)
+        
+        if n_predictors < 2:
+            raise ValueError("Need at least 2 predictors for visualization")
+            
+        if variable_names is None:
+            variable_names = {i+1: f"X{i+1}" for i in range(self.ndim)}
+            
+        # Get predictions DataFrame
+        predictions_df = self.get_predictions_ccr(predictors, response, variable_names)
+        
+        # Create plot based on dimensionality
+        if n_predictors == 2:
+            if figsize is None:
+                figsize = (10, 8)
+            fig, ax = plt.subplots(figsize=figsize)
+            self._plot_2d_heatmap(predictions_df, predictors, response, 
+                                variable_names, ax, cmap)
+            
+        elif n_predictors == 3:
+            if figsize is None:
+                figsize = (15, 5)
+            fig = self._plot_3d_faceted(predictions_df, predictors, response,
+                                    variable_names, figsize, cmap)
+            
+        else:
+            if figsize is None:
+                figsize = (5*2**((n_predictors-3)//2), 5*2**((n_predictors-4)//2))
+            fig = self._plot_nd_recursive(predictions_df, predictors, response,
+                                        variable_names, figsize, cmap, 
+                                        level=n_predictors-3)
+        
+        plt.tight_layout()
+        
+        # Save plot if path provided
+        if save_path:
+            # Create directory if it doesn't exist
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+                
+            # Save with appropriate format
+            fig.savefig(save_path, dpi=dpi, bbox_inches='tight')
+            
+        return fig
+
+    def _plot_2d_heatmap(self, predictions_df, predictors, response, 
+                        variable_names, ax, cmap):
+        """Helper to plot 2D heatmap."""
+        
+        # Reshape data for heatmap
+        x1_cats = self.P.shape[predictors[0]-1]
+        x2_cats = self.P.shape[predictors[1]-1]
+        
+        pred_matrix = predictions_df.iloc[:,-1].values.reshape(x1_cats, x2_cats)
+        
+        # Create heatmap with integer colorbar ticks
+        hm = sns.heatmap(pred_matrix, 
+                        annot=True,
+                        fmt='.0f',
+                        cmap=cmap,
+                        ax=ax)
+        
+        # Set 1-based tick labels
+        ax.set_xticks(np.arange(x2_cats) + 0.5)
+        ax.set_yticks(np.arange(x1_cats) + 0.5)
+        ax.set_xticklabels(range(1, x2_cats + 1))
+        ax.set_yticklabels(range(1, x1_cats + 1))
+        
+        # Modify colorbar to show integer ticks
+        colorbar = hm.collections[0].colorbar
+        unique_values = np.unique(pred_matrix)
+        colorbar.set_ticks(unique_values)
+        colorbar.set_ticklabels([f'{int(x)}' for x in unique_values])
+        
+        # Set labels
+        ax.set_xlabel(f"{variable_names[predictors[1]]}")
+        ax.set_ylabel(f"{variable_names[predictors[0]]}")
+        ax.set_title(f"Predicted {variable_names[response]} Categories")
+
+    def _plot_3d_faceted(self, predictions_df, predictors, response,
+                        variable_names, figsize, cmap):
+        """Helper to plot 3D faceted visualization."""
+        
+        x3_cats = self.P.shape[predictors[2]-1]
+        fig, axes = plt.subplots(1, x3_cats, figsize=figsize)
+        
+        if x3_cats == 1:
+            axes = [axes]
+        
+        # Plot heatmap for each category of third predictor
+        for i in range(x3_cats):
+            mask = predictions_df[f'{variable_names[predictors[2]]} Category'] == i+1
+            subset = predictions_df[mask]
+            
+            x1_cats = self.P.shape[predictors[0]-1]
+            x2_cats = self.P.shape[predictors[1]-1]
+            pred_matrix = subset.iloc[:,-1].values.reshape(x1_cats, x2_cats)
+            
+            # Create heatmap
+            hm = sns.heatmap(pred_matrix,
+                            annot=True,
+                            fmt='.0f',
+                            cmap=cmap,
+                            ax=axes[i])
+            
+            # Set 1-based tick labels
+            axes[i].set_xticks(np.arange(x2_cats) + 0.5)
+            axes[i].set_yticks(np.arange(x1_cats) + 0.5)
+            axes[i].set_xticklabels(range(1, x2_cats + 1))
+            axes[i].set_yticklabels(range(1, x1_cats + 1))
+            
+            # Modify colorbar to show integer ticks
+            colorbar = hm.collections[0].colorbar
+            unique_values = np.unique(pred_matrix)
+            colorbar.set_ticks(unique_values)
+            colorbar.set_ticklabels([f'{int(x)}' for x in unique_values])
+            
+            axes[i].set_xlabel(f"{variable_names[predictors[1]]}")
+            axes[i].set_ylabel(f"{variable_names[predictors[0]]}" if i==0 else "")
+            axes[i].set_title(f"{variable_names[predictors[2]]} = {i+1}")
+        
+        fig.suptitle(f"Predicted {variable_names[response]} Categories")
+        return fig
+
+    def _plot_nd_recursive(self, predictions_df, predictors, response,
+                        variable_names, figsize, cmap, level):
+        """Helper for recursive n-D visualization."""
+
+        if level == 0:
+            # Base case: plot 3D faceted
+            return self._plot_3d_faceted(
+                predictions_df, predictors[:3], response,
+                variable_names, figsize, cmap
+            )
+        
+        # Get categories for current level
+        curr_var = predictors[-(level)]
+        n_cats = self.P.shape[curr_var-1]
+        
+        # Create subplot grid
+        n_rows = int(np.ceil(np.sqrt(n_cats)))
+        n_cols = int(np.ceil(n_cats / n_rows))
+        
+        fig = plt.figure(figsize=figsize)
+        
+        # Recursively create subplots
+        for i in range(n_cats):
+            ax = plt.subplot(n_rows, n_cols, i+1)
+            mask = predictions_df[f'{variable_names[curr_var]} Category'] == i+1
+            subset = predictions_df[mask]
+            
+            if level == 1:
+                # Plot 3D faceted for this subset
+                self._plot_3d_faceted(
+                    subset, predictors[:3], response,
+                    variable_names, figsize, cmap
+                )
+            else:
+                # Recursive call
+                self._plot_nd_recursive(
+                    subset, predictors[:-1], response,
+                    variable_names, figsize, cmap, level-1
+                )
+                
+            ax.set_title(f"{variable_names[curr_var]} = {i+1}")
+        
+        return fig
