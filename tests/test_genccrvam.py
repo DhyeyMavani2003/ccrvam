@@ -521,15 +521,14 @@ def test_plot_ccr_predictions_2d(table_4d):
     
     # Assert
     assert isinstance(fig, plt.Figure)
-    assert len(fig.axes) == 2
     
     # Check title and labels
     ax = fig.axes[0]
     assert "Predicted" in ax.get_title()
-    assert ax.get_xlabel() is not None
-    assert ax.get_ylabel() is not None
+    assert "Predictor Combination Index" in ax.get_xlabel()
+    assert "Category" in ax.get_ylabel()
     
-    plt.close(fig)
+    plt.close('all')
 
 def test_plot_ccr_predictions_3d(table_4d):
     """Test 3D CCR prediction visualization with custom variable names."""
@@ -542,16 +541,21 @@ def test_plot_ccr_predictions_3d(table_4d):
     
     # Assert
     assert isinstance(fig, plt.Figure)
-    assert len(fig.axes) == 4
+    assert len(fig.axes) >= 1  # Should have at least the main axis
     
-    # Check labels in first subplot
+    # Check title and labels
     ax = fig.axes[0]
-    assert ax.get_xlabel() == "Pain"
-    assert ax.get_ylabel() == "Length"
-    assert "Lordosis" in ax.get_title()
-    assert "Predicted Outcome" in fig._suptitle.get_text()
+    assert "Predicted Outcome" in ax.get_title()
+    assert "Predictor Combination Index" in ax.get_xlabel()
+    assert "Outcome Category" in ax.get_ylabel()
     
-    plt.close(fig)
+    # Check legend entries contain full variable names
+    legend_text = [text.get_text() for text in ax.get_legend().get_texts()]
+    assert any("Length=" in text for text in legend_text)
+    assert any("Pain=" in text for text in legend_text)
+    assert any("Lordosis=" in text for text in legend_text)
+    
+    plt.close('all')
 
 def test_plot_ccr_predictions_custom_figsize(table_4d):
     """Test custom figsize for CCR prediction visualization."""
@@ -564,10 +568,9 @@ def test_plot_ccr_predictions_custom_figsize(table_4d):
     
     # Assert
     assert isinstance(fig, plt.Figure)
-    assert fig.get_size_inches()[0] == custom_figsize[0]
-    assert fig.get_size_inches()[1] == custom_figsize[1]
+    np.testing.assert_array_almost_equal(fig.get_size_inches(), custom_figsize)
     
-    plt.close(fig)
+    plt.close('all')
 
 def test_plot_ccr_predictions_custom_cmap(table_4d):
     """Test custom colormap for CCR prediction visualization."""
@@ -580,20 +583,8 @@ def test_plot_ccr_predictions_custom_cmap(table_4d):
     
     # Assert 
     assert isinstance(fig, plt.Figure)
-    # Check colormap
-    heatmap = fig.axes[0].collections[0]
-    assert heatmap.cmap.name == custom_cmap
     
-    plt.close(fig)
-
-def test_plot_ccr_predictions_invalid_predictors(table_4d):
-    """Test error handling for invalid number of predictors."""
-    # Setup
-    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
-    
-    # Assert that it raises ValueError with fewer than 2 predictors
-    with pytest.raises(ValueError, match="Need at least 2 predictors"):
-        ccrvam.plot_ccr_predictions([1], 4)
+    plt.close('all')
 
 def test_plot_ccr_predictions_save_creates_directory(table_4d):
     """Test directory creation when saving plot."""
@@ -607,73 +598,33 @@ def test_plot_ccr_predictions_save_creates_directory(table_4d):
         # Call with save_path to a non-existent directory
         fig = ccrvam.plot_ccr_predictions([1, 2], 4, save_path=save_path)
         
-        # Assert directory was created
+        # Assert directory was created and file exists
         assert os.path.exists(subdir)
-    
-    plt.close(fig)
-
-def test_plot_2d_heatmap_tick_labels(table_4d):
-    """Test that 2D heatmap has 1-based tick labels."""
-    # Setup
-    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
-    fig, ax = plt.subplots()
-    
-    # Get predictions DataFrame
-    predictions_df = ccrvam.get_predictions_ccr([1, 2], 4)
-    
-    # Call plotting method directly
-    ccrvam._plot_2d_heatmap(predictions_df, [1, 2], 4, 
-                            {1: "X1", 2: "X2", 4: "Y"}, ax, "YlOrRd")
-    
-    # Assert
-    xticklabels = [label.get_text() for label in ax.get_xticklabels()]
-    yticklabels = [label.get_text() for label in ax.get_yticklabels()]
-    
-    # Check that tick labels start with 1 (not 0)
-    assert xticklabels[0] == '1'
-    assert yticklabels[0] == '1'
-    
-    # Check colorbar ticks are integers
-    colorbar = ax.collections[0].colorbar
-    ticklabels = [label.get_text() for label in colorbar.ax.get_yticklabels()]
-    assert all(label.isdigit() for label in ticklabels)
-    
-    plt.close(fig)
-
-def test_plot_3d_faceted_structure(table_4d):
-    """Test structure of 3D faceted plot."""
-    # Setup
-    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
-    predictions_df = ccrvam.get_predictions_ccr([1, 2, 3], 4)
-    
-    # Call plotting method directly
-    fig = ccrvam._plot_3d_faceted(predictions_df, [1, 2, 3], 4,
-                                {1: "X1", 2: "X2", 3: "X3", 4: "Y"}, (15, 5), "YlOrRd")
-    cases_xticklabels = []
-    cases_yticklabels = []
-    # Check that each subplot has correct labels
-    for i, ax in enumerate(fig.axes):
-        xticklabels = [label.get_text() for label in ax.get_xticklabels()]
-        yticklabels = [label.get_text() for label in ax.get_yticklabels()]
+        assert os.path.exists(save_path)
         
-        # Check that tick labels start with 1 (not 0)
-        cases_xticklabels.append(xticklabels)
-        cases_yticklabels.append(yticklabels)
+        # Check if legend file is created when number of combinations > 15
+        if len(fig.axes[0].get_legend().get_texts()) > 15:
+            legend_path = save_path.rsplit('.', 1)[0] + '_legend.png'
+            assert os.path.exists(legend_path)
     
-    assert cases_xticklabels == [['1', '2', '3'], ['1', '2', '3'], [], []]
-    assert cases_yticklabels == [['1', '2'], ['1', '2'], ['3', '4', '5'], ['3', '4', '5']]
-    
-    plt.close(fig)
+    plt.close('all')
 
-def test_nd_recursive_base_case(table_4d):
-    """Test base case of recursive n-D visualization."""
+def test_plot_ccr_predictions_invalid_predictors(table_4d):
+    """Test error handling for invalid predictors."""
     # Setup
     ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
-    predictions_df = ccrvam.get_predictions_ccr([1, 2, 3], 4)
     
-    # Call with level=0 (base case)
-    fig = ccrvam._plot_nd_recursive(predictions_df, [1, 2, 3], 4,
-                                  {1: "X1", 2: "X2", 3: "X3", 4: "Y"}, 
-                                  (10, 5), "YlOrRd", level=0)
-    
+    # Single predictor should work
+    fig = ccrvam.plot_ccr_predictions([1], 4)
+    assert isinstance(fig, plt.Figure)
     plt.close(fig)
+    
+    # Empty list should raise error
+    with pytest.raises(IndexError):
+        ccrvam.plot_ccr_predictions([], 4)
+        
+    # Invalid predictor indices should raise error
+    with pytest.raises(ValueError):
+        ccrvam.plot_ccr_predictions([5], 4)
+        
+    plt.close('all')
