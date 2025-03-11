@@ -252,7 +252,10 @@ class GenericCCRVAM:
         The DataFrame contains columns for each source axis category and the 
         predicted target axis category. The categories are 1-indexed.
         """
+        # Flag to hide response default name if variable_names is not provided
+        hide_response_name_flag = False
         if variable_names is None:
+            hide_response_name_flag = True
             variable_names = {i+1: f"X{i+1}" for i in range(self.ndim)}
         
         # Input validation
@@ -282,7 +285,9 @@ class GenericCCRVAM:
         result = pd.DataFrame()
         for axis, cats in zip(parsed_predictors, flat_categories):
             result[f'{variable_names[axis+1]} Category'] = cats + 1
-        result[f'Predicted {variable_names[parsed_response+1]} Category'] = predictions + 1
+            
+        response_name = variable_names[response] if not hide_response_name_flag else "Response"
+        result[f'Predicted {response_name} Category'] = predictions + 1
         
         return result
     
@@ -519,10 +524,9 @@ class GenericCCRVAM:
             self.marginal_cdfs[response]
         )
                 
-    def plot_ccr_predictions(self, predictors, response, variable_names=None, 
-                            figsize=None, cmap='YlOrRd', save_path=None, 
-                            dpi=300, **kwargs):
-        """Plot CCR predictions as a 2D heatmap.
+    def plot_ccr_predictions(self, predictors, response, variable_names=None,
+                            legend_style='side', figsize=None, save_path=None, dpi=300):
+        """Plot CCR predictions as a 2D visualization.
         
         Parameters
         ----------
@@ -532,17 +536,15 @@ class GenericCCRVAM:
             1-indexed response axis
         variable_names : dict, optional
             Dictionary mapping indices to variable names
+        legend_style : str, optional
+            How to display predictor combinations: 'side' (default) or 'xaxis'
         figsize : tuple, optional
             Figure size (width, height)
-        cmap : str, optional
-            Matplotlib colormap name
         save_path : str, optional
             Path to save the plot (e.g. 'plots/ccr_pred.pdf')
         dpi : int, optional
             Resolution for saving raster images (png, jpg)
-        **kwargs : dict
-            Additional arguments passed to plotting functions
-            
+        
         Returns
         -------
         matplotlib.figure.Figure
@@ -554,13 +556,16 @@ class GenericCCRVAM:
         if was_interactive:
             plt.ioff()
         
+        # Flag to hide response default name if variable_names is not provided
+        hide_response_name_flag = False
         if variable_names is None:
+            hide_response_name_flag = True
             variable_names = {i+1: f"X{i+1}" for i in range(self.ndim)}
             
         # Get predictions DataFrame
         predictions_df = self.get_predictions_ccr(predictors, response, variable_names)
         
-        # Get the number of categories for the response variable
+        # Get the number of categories for the response variable and reverse order
         response_cats = self.P.shape[response-1]
         
         # Get all possible combinations of predictor categories
@@ -573,6 +578,9 @@ class GenericCCRVAM:
         for i, pred_cat in enumerate(predictions_df.iloc[:, -1]):
             heatmap_data[int(pred_cat)-1, i] = 1  # Mark the predicted category with 1
         
+        # Flip matrix vertically
+        heatmap_data = np.flip(heatmap_data, axis=0)
+        
         # Determine a good figure size based on the number of combinations
         if figsize is None:
             n_combos = len(predictions_df)
@@ -583,88 +591,92 @@ class GenericCCRVAM:
         # Create the plot
         fig, ax = plt.subplots(figsize=figsize)
         
-        # Plot the heatmap
-        ax.imshow(heatmap_data, aspect='auto', cmap=cmap, interpolation='nearest')
+        # Plot white background without grid
+        ax.imshow(heatmap_data, aspect='auto', cmap='binary', 
+                interpolation='nearest', alpha=0.0)  # Completely transparent background
         
-        # Set y-axis labels (response categories)
+        # Set y-axis labels (response categories in descending order)
         ax.set_yticks(range(response_cats))
-        ax.set_yticklabels([f"{i+1}" for i in range(1, response_cats+1)])
+        ax.set_yticklabels([f"{response_cats-i}" for i in range(response_cats)])
         
-        # Set simple numeric x-axis labels (combination index)
+        # Create x-axis labels and legend elements
+        legend_elements = []
+        x_labels = []
+        for i, row in predictions_df[pred_cat_columns].iterrows():
+            # Extract values and variable names
+            values = [str(int(row[col])) for col in pred_cat_columns]
+            var_names = [col.rsplit(' Category', 1)[0] for col in pred_cat_columns]
+            
+            # Create tuple notation
+            values_str = f"({', '.join(values)})"
+            var_names_str = f"({', '.join(var_names)})"
+            
+            # Store both formats
+            legend_elements.append(f"#{i+1}: {var_names_str} = {values_str}")
+            x_labels.append(f"{values_str}" if legend_style == 'xaxis' else f"{i+1}")
+        
+        # Set x-axis labels
         ax.set_xticks(range(len(predictions_df)))
-        ax.set_xticklabels([f"{i+1}" for i in range(len(predictions_df))])
+        ax.set_xticklabels(x_labels)
+        if legend_style == 'xaxis':
+            plt.xticks(rotation=45, ha='right')
         
-        # Add markers to show predicted categories
+        # Add circles to show predicted categories
         for col in range(len(predictions_df)):
-            pred_cat = int(predictions_df.iloc[col, -1]) - 1  # 0-based index
-            ax.text(col, pred_cat, "✓", ha='center', va='center', 
-                    color='black', fontsize=12, fontweight='bold')
-        
-        # Add grid lines to separate cells
-        ax.set_xticks(np.arange(-.5, len(predictions_df), 1), minor=True)
-        ax.set_yticks(np.arange(-.5, response_cats, 1), minor=True)
-        ax.grid(which='minor', color='w', linestyle='-', linewidth=2)
+            pred_cat = int(predictions_df.iloc[col, -1])
+            y_pos = response_cats - pred_cat
+            ax.plot(col, y_pos, 'o', color='black', 
+                    markersize=8, markerfacecolor='black')
         
         # Set titles and labels
-        response_name = variable_names[response]
-        ax.set_ylabel(f"{response_name} Category")
-        ax.set_xlabel("Predictor Combination Index")
+        ax.set_xlabel("Predictor Combination Index" if legend_style == 'side' else f"Category Combinations of {var_names_str}")
+        response_name = variable_names[response] if not hide_response_name_flag else "Response"
+        ax.set_ylabel(f"Predicted {response_name} Category")
         
         pred_names = [variable_names[p] for p in predictors]
         pred_names_str = ", ".join(pred_names)
-        
         ax.set_title(f"Predicted {response_name} Categories\nBased on {pred_names_str}")
         
-        # Create a legend showing the mapping between combination indices and predictor values
-        legend_elements = []
-        for i, row in predictions_df[pred_cat_columns].iterrows():
-            # Create a combination description
-            combo_values = []
-            for col in pred_cat_columns:
-                val = row[col]
-                # Extract full variable name by removing ' Category' from column name
-                var_name = col.rsplit(' Category', 1)[0]
-                combo_values.append(f"{var_name}={val}")
-            combo_str = ", ".join(combo_values)
-            legend_elements.append(f"#{i+1}: {combo_str}")
         
         # Create a legend with combination mappings
         legend_title = "Predictor Combinations:"
         
-        # Calculate figure size based on number of combinations
-        if len(legend_elements) > 15:
-            # Calculate the height needed for the legend
-            legend_height = min(12, len(legend_elements) * 0.3 + 0.5)  # Increased height ratio
-            legend_fig, legend_ax = plt.subplots(figsize=(6, legend_height))
-            legend_ax.axis('off')
-            
-            # Create legend entries
-            legend_text = [legend_title]
-            legend_text.extend(legend_elements)
-            
-            # Display as text in the legend figure with smaller line spacing
-            y_pos = 0.98  # Start slightly below top
-            line_height = 0.95 / max(len(legend_text), 15)  # Adjusted line height
-            
-            legend_ax.text(0.05, y_pos, legend_title, fontweight='bold', 
-                          va='top', transform=legend_ax.transAxes)
-            y_pos -= line_height * 1.2  # Extra space after title
-            
-            # Add all combinations to legend
-            for entry in legend_elements:
-                legend_ax.text(0.05, y_pos, entry, va='top', fontsize=9,
-                             transform=legend_ax.transAxes)
-                y_pos -= line_height
+        # Add legend if using side style
+        if legend_style == 'side':
+            # Calculate figure size based on number of combinations
+            if len(legend_elements) > 15:
+                # Calculate the height needed for the legend
+                legend_height = min(12, len(legend_elements) * 0.3 + 0.5)  # Increased height ratio
+                legend_fig, legend_ax = plt.subplots(figsize=(6, legend_height))
+                legend_ax.axis('off')
                 
-            legend_fig.tight_layout()
-        else:
-            # For fewer combinations, use a standard legend on the main plot
-            handles = [plt.Line2D([], [], marker='none', color='none')] * len(legend_elements)
-            ax.legend(handles, legend_elements, title=legend_title,
-                     loc='center left', bbox_to_anchor=(1.05, 0.5), 
-                     fontsize='small', frameon=False)
+                # Create legend entries
+                legend_text = [legend_title]
+                legend_text.extend(legend_elements)
+                
+                # Display as text in the legend figure with smaller line spacing
+                y_pos = 0.98  # Start slightly below top
+                line_height = 0.95 / max(len(legend_text), 15)  # Adjusted line height
+                
+                legend_ax.text(0.05, y_pos, legend_title, fontweight='bold', 
+                            va='top', transform=legend_ax.transAxes)
+                y_pos -= line_height * 1.2  # Extra space after title
+                
+                # Add all combinations to legend
+                for entry in legend_elements:
+                    legend_ax.text(0.05, y_pos, entry, va='top', fontsize=9,
+                                transform=legend_ax.transAxes)
+                    y_pos -= line_height
+                    
+                legend_fig.tight_layout()
+            else:
+                # For fewer combinations, use a standard legend on the main plot
+                handles = [plt.Line2D([], [], marker='none', color='none')] * len(legend_elements)
+                ax.legend(handles, legend_elements, title=legend_title,
+                        loc='center left', bbox_to_anchor=(1.05, 0.5), 
+                        fontsize='small', frameon=False)
         
-        # Tight layout for main figure
+        # Adjust layout and save plot
         plt.tight_layout()
         
         # Save plot if path provided

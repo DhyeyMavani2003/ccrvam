@@ -9,7 +9,7 @@ from ccrvam.checkerboard.genstatsim import (
         permutation_test_ccram,
     )
 
-__version__ = "0.8.2"
+__version__ = "0.9.0"
 __all__ = [
   "GenericCCRVAM",
   "DataProcessor",

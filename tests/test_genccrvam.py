@@ -253,6 +253,15 @@ def test_get_predictions_ccr(generic_ccrvam):
     assert isinstance(df, pd.DataFrame)
     assert "Predicted Income Category" in df.columns
     assert "Education Category" in df.columns
+    
+    df_nonames = generic_ccrvam.get_predictions_ccr(
+        predictors=[2],
+        response=1
+    )
+    
+    assert isinstance(df_nonames, pd.DataFrame)
+    assert "Predicted Response Category" in df_nonames.columns
+    assert "X2 Category" in df_nonames.columns
 
 # Add Consistency Tests for Multi-axis
 def test_multi_axis_consistency(generic_ccrvam):
@@ -516,19 +525,28 @@ def test_plot_ccr_predictions_2d(table_4d):
     # Setup
     ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
     
-    # Call with 2D predictors
-    fig = ccrvam.plot_ccr_predictions([1, 2], 4)
-    
-    # Assert
-    assert isinstance(fig, plt.Figure)
-    
-    # Check title and labels
-    ax = fig.axes[0]
-    assert "Predicted" in ax.get_title()
-    assert "Predictor Combination Index" in ax.get_xlabel()
-    assert "Category" in ax.get_ylabel()
-    
-    plt.close('all')
+    # Test both legend styles
+    for style in ['side', 'xaxis']:
+        # Call with 2D predictors
+        fig = ccrvam.plot_ccr_predictions([1, 2], 4, legend_style=style)
+        
+        # Assert
+        assert isinstance(fig, plt.Figure)
+        
+        # Check title and labels
+        ax = fig.axes[0]
+        assert "Predicted" in ax.get_title()
+        if style == 'side':
+            assert "Predictor Combination Index" in ax.get_xlabel()
+        else:
+            assert "Category Combinations of (X1, X2)" in ax.get_xlabel()
+        assert "Category" in ax.get_ylabel()
+        
+        # Check if circles are present
+        circles = [child for child in ax.get_children() if isinstance(child, plt.Line2D)]
+        assert len(circles) > 0
+        
+        plt.close('all')
 
 def test_plot_ccr_predictions_3d(table_4d):
     """Test 3D CCR prediction visualization with custom variable names."""
@@ -536,26 +554,29 @@ def test_plot_ccr_predictions_3d(table_4d):
     ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
     var_names = {1: "Length", 2: "Pain", 3: "Lordosis", 4: "Outcome"}
     
-    # Call with 3D predictors
-    fig = ccrvam.plot_ccr_predictions([1, 2, 3], 4, variable_names=var_names)
-    
-    # Assert
-    assert isinstance(fig, plt.Figure)
-    assert len(fig.axes) >= 1  # Should have at least the main axis
-    
-    # Check title and labels
-    ax = fig.axes[0]
-    assert "Predicted Outcome" in ax.get_title()
-    assert "Predictor Combination Index" in ax.get_xlabel()
-    assert "Outcome Category" in ax.get_ylabel()
-    
-    # Check legend entries contain full variable names
-    legend_text = [text.get_text() for text in ax.get_legend().get_texts()]
-    assert any("Length=" in text for text in legend_text)
-    assert any("Pain=" in text for text in legend_text)
-    assert any("Lordosis=" in text for text in legend_text)
-    
-    plt.close('all')
+    # Test both legend styles
+    for style in ['side', 'xaxis']:
+        # Call with 3D predictors
+        fig = ccrvam.plot_ccr_predictions([1, 2, 3], 4, 
+                                        variable_names=var_names,
+                                        legend_style=style)
+        
+        # Assert
+        assert isinstance(fig, plt.Figure)
+        
+        # Check title and labels
+        ax = fig.axes[0]
+        assert "Predicted Outcome" in ax.get_title()
+        if style == 'side' and len(ax.get_legend().get_texts()) <= 15:
+            # Check legend format when using side legend
+            legend_text = [text.get_text() for text in ax.get_legend().get_texts()]
+            assert any("(Length, Pain, Lordosis)" in text for text in legend_text)
+        elif style == 'xaxis':
+            # Check x-axis labels format
+            x_labels = [label.get_text() for label in ax.get_xticklabels()]
+            assert any('(' in label for label in x_labels)
+            
+        plt.close('all')
 
 def test_plot_ccr_predictions_custom_figsize(table_4d):
     """Test custom figsize for CCR prediction visualization."""
@@ -572,20 +593,6 @@ def test_plot_ccr_predictions_custom_figsize(table_4d):
     
     plt.close('all')
 
-def test_plot_ccr_predictions_custom_cmap(table_4d):
-    """Test custom colormap for CCR prediction visualization."""
-    # Setup
-    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
-    custom_cmap = 'viridis'
-    
-    # Call with custom cmap
-    fig = ccrvam.plot_ccr_predictions([1, 2], 4, cmap=custom_cmap)
-    
-    # Assert 
-    assert isinstance(fig, plt.Figure)
-    
-    plt.close('all')
-
 def test_plot_ccr_predictions_save_creates_directory(table_4d):
     """Test directory creation when saving plot."""
     # Setup
@@ -595,19 +602,23 @@ def test_plot_ccr_predictions_save_creates_directory(table_4d):
         subdir = os.path.join(tmpdirname, 'new_subdir')
         save_path = os.path.join(subdir, 'test_plot.png')
         
-        # Call with save_path to a non-existent directory
-        fig = ccrvam.plot_ccr_predictions([1, 2], 4, save_path=save_path)
-        
-        # Assert directory was created and file exists
-        assert os.path.exists(subdir)
-        assert os.path.exists(save_path)
-        
-        # Check if legend file is created when number of combinations > 15
-        if len(fig.axes[0].get_legend().get_texts()) > 15:
-            legend_path = save_path.rsplit('.', 1)[0] + '_legend.png'
-            assert os.path.exists(legend_path)
-    
-    plt.close('all')
+        # Test both legend styles
+        for style in ['side', 'xaxis']:
+            # Call with save_path
+            fig = ccrvam.plot_ccr_predictions([1, 2, 3], 4, 
+                                            save_path=save_path,
+                                            legend_style=style)
+            
+            # Assert directory was created and file exists
+            assert os.path.exists(subdir)
+            assert os.path.exists(save_path)
+            
+            # Check if separate legend file is created when needed
+            if style == 'side' and len(fig.axes[0].get_legend().get_texts()) > 15:
+                legend_path = save_path.rsplit('.', 1)[0] + '_legend.png'
+                assert os.path.exists(legend_path)
+            
+            plt.close('all')
 
 def test_plot_ccr_predictions_invalid_predictors(table_4d):
     """Test error handling for invalid predictors."""
@@ -627,4 +638,19 @@ def test_plot_ccr_predictions_invalid_predictors(table_4d):
     with pytest.raises(ValueError):
         ccrvam.plot_ccr_predictions([5], 4)
         
+    plt.close('all')
+
+def test_heatmap_content(table_4d):
+    """Test that the plot contains expected visual elements."""
+    # Setup 
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    # Create plot
+    fig = ccrvam.plot_ccr_predictions([1, 2], 4)
+    ax = fig.axes[0]
+    
+    # Check y-axis has descending categories
+    y_labels = [label.get_text() for label in ax.get_yticklabels()]
+    assert y_labels == [str(i) for i in range(table_4d.shape[-1], 0, -1)]
+    
     plt.close('all')
