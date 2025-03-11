@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 import os
 from .utils import gen_case_form_to_contingency
 
@@ -585,7 +584,7 @@ class GenericCCRVAM:
         fig, ax = plt.subplots(figsize=figsize)
         
         # Plot the heatmap
-        im = ax.imshow(heatmap_data, aspect='auto', cmap=cmap, interpolation='nearest')
+        ax.imshow(heatmap_data, aspect='auto', cmap=cmap, interpolation='nearest')
         
         # Set y-axis labels (response categories)
         ax.set_yticks(range(response_cats))
