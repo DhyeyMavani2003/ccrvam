@@ -269,7 +269,7 @@ def test_load_case_form_array():
     result = DataProcessor.load_data(
         data,
         data_form="case_form",
-        shape=(2, 3, 2, 6)
+        dimension=(2, 3, 2, 6)
     )
     assert isinstance(result, np.ndarray)
     assert result.shape == (2, 3, 2, 6)
@@ -280,7 +280,7 @@ def test_load_freq_form_array():
     result = DataProcessor.load_data(
         data,
         data_form="frequency_form",
-        shape=(2, 3, 2, 6)
+        dimension=(2, 3, 2, 6)
     )
     assert isinstance(result, np.ndarray)
     assert result.shape == (2, 3, 2, 6)
@@ -297,7 +297,7 @@ def test_load_data_with_category_map(sample_category_map, sample_var_list):
     result = DataProcessor.load_data(
         df,
         data_form="case_form",
-        shape=(2, 3, 2, 6),
+        dimension=(2, 3, 2, 6),
         var_list=sample_var_list,
         category_map=sample_category_map,
         named=True
@@ -320,7 +320,7 @@ def test_load_data_from_file(tmp_path, sample_category_map, sample_var_list):
     result = DataProcessor.load_data(
         str(file_path),
         data_form="case_form",
-        shape=(2, 3, 2, 6),
+        dimension=(2, 3, 2, 6),
         var_list=sample_var_list,
         category_map=sample_category_map,
         named=True
@@ -334,7 +334,7 @@ def test_invalid_data_form():
         DataProcessor.load_data(
             np.array([[1, 2]]),
             data_form="invalid_form",
-            shape=(2, 2)
+            dimension=(2, 2)
         )
 
 def test_missing_file():
@@ -343,7 +343,7 @@ def test_missing_file():
         DataProcessor.load_data(
             "nonexistent.csv",
             data_form="case_form",
-            shape=(2, 2)
+            dimension=(2, 2)
         )
 
 def test_invalid_category_mapping(sample_var_list):
@@ -358,20 +358,20 @@ def test_invalid_category_mapping(sample_var_list):
         DataProcessor.load_data(
             df,
             data_form="case_form",
-            shape=(2, 2, 6),
+            dimension=(2, 2, 6),
             var_list=sample_var_list,
             category_map={'pain': {'valid': 1}},
             named=True
         )
 
-def test_shape_mismatch():
-    """Test shape mismatch raises error."""
+def test_dimension_mismatch():
+    """Test dimension mismatch raises error."""
     data = np.array([[1, 2], [3, 4]])
     with pytest.raises(ValueError):
         DataProcessor.load_data(
             data,
             data_form="case_form",
-            shape=(2, 2, 2)  # Wrong shape
+            dimension=(2, 2, 2)  # Wrong dimension
         )
 
 def test_data_type_conversion():
@@ -380,7 +380,7 @@ def test_data_type_conversion():
     result = DataProcessor.load_data(
         df,
         data_form="case_form",
-        shape=(3, 3),
+        dimension=(3, 3),
         named=True
     )
     assert result.dtype == np.int64
@@ -390,7 +390,7 @@ def test_load_caseform_data_with_delimiter(sample_var_list, sample_category_map,
     table1 = DataProcessor.load_data(
         "./tests/data/caseform.pain.txt",
         data_form="case_form",
-        shape=(2, 3, 2, 6),
+        dimension=(2, 3, 2, 6),
         var_list=sample_var_list,
         category_map=sample_category_map,
         named=True,
@@ -406,7 +406,7 @@ def test_load_freqform_data_with_delimiter(sample_var_list, sample_category_map,
     table2 = DataProcessor.load_data(
         "./tests/data/freqform.pain.txt",
         data_form="frequency_form", 
-        shape=(2, 3, 2, 6),
+        dimension=(2, 3, 2, 6),
         var_list=sample_var_list,
         category_map=sample_category_map,
         named=True,

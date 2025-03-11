@@ -113,6 +113,7 @@ class GenericCCRVAM:
             
         self.P = P
         self.ndim = P.ndim
+        self.dimension = P.shape
         
         # Calculate and store marginals for each axis
         self.marginal_pdfs = {}

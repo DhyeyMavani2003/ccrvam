@@ -10,7 +10,7 @@ class DataProcessor:
     def load_data(
         data: Union[str, np.ndarray, pd.DataFrame],
         data_form: str,
-        shape: tuple,
+        dimension: tuple,
         var_list: Optional[List[str]] = None,
         category_map: Optional[Dict[str, Dict[str, int]]] = None,
         named: bool = False,
@@ -25,8 +25,8 @@ class DataProcessor:
             Data source - can be file path or direct data
         data_form : str
             One of: "case_form", "frequency_form", "table_form"
-        shape : tuple 
-            Shape of contingency table (categories per variable)
+        dimension : tuple 
+            Dimension of contingency table (categories per variable)
         var_list : List[str], optional
             List of variable names in order
         category_map : Dict[str, Dict[str, int]], optional
@@ -75,11 +75,11 @@ class DataProcessor:
 
         # Process based on data form
         if data_form == "case_form":
-            return DataProcessor._process_case_form(data, shape)
+            return DataProcessor._process_case_form(data, dimension)
         elif data_form == "frequency_form":
-            return DataProcessor._process_frequency_form(data, shape)
+            return DataProcessor._process_frequency_form(data, dimension)
         else:
-            return DataProcessor._process_table_form(data, shape)
+            return DataProcessor._process_table_form(data, dimension)
 
     @staticmethod
     def _apply_category_mapping(
