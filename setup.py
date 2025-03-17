@@ -19,9 +19,7 @@ INSTALL_REQUIRES = [
   "pytest",
   "coverage",
   "scipy",
-  "matplotlib",
-  "seaborn"
-  
+  "matplotlib"
 ]
 ENTRY_POINTS = {
   

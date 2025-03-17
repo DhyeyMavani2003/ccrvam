@@ -35,25 +35,39 @@ class CustomBootstrapResult:
     histogram_fig: plt.Figure = None
 
     def plot_distribution(self, title=None):
-            """Plot bootstrap distribution with observed value."""
-            try:
-                fig, ax = plt.subplots(figsize=(10, 6))
-                
-                data_range = np.ptp(self.bootstrap_distribution)
-                bins = 1 if data_range == 0 else min(50, max(1, int(np.sqrt(len(self.bootstrap_distribution)))))
-                
+        """Plot bootstrap distribution with observed value."""
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            data_range = np.ptp(self.bootstrap_distribution)
+            
+            # Handle both exact zeros and very small ranges due to floating-point precision
+            if data_range < 1e-10:  # Choose an appropriate small threshold
+                # Almost degenerate case - all values are approximately the same
+                unique_value = np.mean(self.bootstrap_distribution)
+                ax.axvline(unique_value, color='blue', linewidth=2, 
+                        label=f'All bootstrap values ≈ {unique_value:.4f}')
+                ax.set_xlim([unique_value - 0.1, unique_value + 0.1])  # Add some padding
+                ax.text(unique_value, 0.5, f"All {len(self.bootstrap_distribution)} bootstrap\nvalues ≈ {unique_value:.4f}", 
+                    ha='center', va='center', bbox=dict(facecolor='white', alpha=0.8))
+            else:
+                # Normal case - use histogram
+                bins = min(50, max(10, int(np.sqrt(len(self.bootstrap_distribution)))))
                 ax.hist(self.bootstrap_distribution, bins=bins, density=True, alpha=0.7)
-                ax.axvline(self.observed_value, color='red', linestyle='--', 
-                        label=f'Observed {self.metric_name}')
-                ax.set_xlabel(f'{self.metric_name} Value')
-                ax.set_ylabel('Density')
-                ax.set_title(title or 'Bootstrap Distribution')
-                ax.legend()
-                self.histogram_fig = fig
-                return fig
-            except Exception as e:
-                print(f"Warning: Could not create plot: {str(e)}")
-                return None
+            
+            # Always show observed value
+            ax.axvline(self.observed_value, color='red', linestyle='--', 
+                    label=f'Observed {self.metric_name} = {self.observed_value:.4f}')
+            
+            ax.set_xlabel(f'{self.metric_name} Value')
+            ax.set_ylabel('Density')
+            ax.set_title(title or 'Bootstrap Distribution')
+            ax.legend()
+            self.histogram_fig = fig
+            return fig
+        except Exception as e:
+            print(f"Warning: Could not create plot: {str(e)}")
+            return None
 
 def bootstrap_ccram(contingency_table: np.ndarray,
                    predictors: Union[List[int], int],
@@ -264,8 +278,8 @@ def _bootstrap_predict_category_multi(
         paired=True,
         vectorized=True
     )
-
-def bootstrap_predict_category_summary(
+    
+def bootstrap_predict_ccr_summary(
     contingency_table: np.ndarray,
     predictors: List[int],
     predictors_names: List[str],
@@ -318,9 +332,6 @@ def bootstrap_predict_category_summary(
         if axis >= ndim:
             raise ValueError(f"Predictor axis {axis+1} is out of bounds")
     
-    # Get all required axes in sorted order
-    # all_axes = sorted(parsed_predictors + [parsed_response])
-    
     # Get dimensions for each source axis and target axis
     source_dims = [contingency_table.shape[axis] for axis in parsed_predictors]
     target_dim = contingency_table.shape[parsed_response]
@@ -357,15 +368,18 @@ def bootstrap_predict_category_summary(
         
         for val, count in zip(unique_preds, counts):
             summary[(int(val),) + source_indices] = (count / total) * 100
-            
+    
+    # Reverse the order of response categories to have highest value at top
+    summary = np.flip(summary, axis=0)
+    
     # Create multi-index for source categories
     source_names = [
-        [f"{name}={i}" for i in range(dim)]
+        [f"{name}={i+1}" for i in range(dim)]
         for name, dim in zip(predictors_names, source_dims)
     ]
     
-    # Create target categories
-    target_categories = [f"{response_name}={i}" for i in range(summary.shape[0])]
+    # Create target categories (reversed order, highest first)
+    target_categories = [f"{response_name}={target_dim-i}" for i in range(target_dim)]
     
     # Reshape summary matrix for DataFrame
     reshaped_summary = summary.reshape(summary.shape[0], -1)
@@ -381,10 +395,77 @@ def bootstrap_predict_category_summary(
         columns=columns
     )
     
-    print("\nPrediction Summary (% of bootstrap samples)")
-    print("-" * 80)
-    print(summary_df.round(1).to_string(float_format=lambda x: f"{x:5.1f}%"))
-    print("-" * 80)
+    # Add a plot method to the DataFrame
+    def plot_prediction_heatmap(df=summary_df, figsize=None, cmap='Blues', 
+                              show_values=True, save_path=None, dpi=300):
+        """
+        Plot prediction percentages as a heatmap visualization.
+        
+        Parameters
+        ----------
+        figsize : tuple, optional
+            Figure size (width, height)
+        cmap : str, optional
+            Colormap for heatmap
+        show_values : bool, optional
+            Whether to show percentage values
+        save_path : str, optional
+            Path to save the plot
+        dpi : int, optional
+            Resolution for saved image
+        """
+        # Get data dimensions
+        n_rows, n_cols = df.shape
+        
+        # Set figure size based on data dimensions
+        if figsize is None:
+            figsize = (max(8, min(n_cols * 1.2, 16)), 
+                      max(6, min(n_rows * 1.2, 12)))
+        
+        fig, ax = plt.subplots(figsize=figsize)
+        
+        # Create heatmap
+        im = ax.imshow(df.values, cmap=cmap, aspect='auto')
+        
+        # Add text values if requested
+        if show_values:
+            for i in range(n_rows):
+                for j in range(n_cols):
+                    value = df.iloc[i, j]
+                    if value > 0:  # Only show non-zero values
+                        text_color = 'white' if value > 50 else 'black'
+                        ax.text(j, i, f"{value:.1f}%", 
+                               ha='center', va='center', 
+                               color=text_color, fontweight='bold',
+                               fontsize=8)
+        
+        # Set labels and ticks
+        ax.set_xticks(range(n_cols))
+        ax.set_xticklabels(df.columns, rotation=45, ha='right')
+        ax.set_yticks(range(n_rows))
+        ax.set_yticklabels(df.index)
+        
+        # Add title and labels
+        pred_names = ", ".join(predictors_names)
+        title = f"Bootstrap Prediction Percentages\n{response_name} Categories Given {pred_names}"
+        ax.set_title(title)
+        ax.set_xlabel("Predictor Category Combinations")
+        ax.set_ylabel(f"{response_name} Categories")
+        
+        # Add colorbar
+        cbar = plt.colorbar(im, ax=ax)
+        cbar.set_label("Prediction Percentage (%)")
+        
+        plt.tight_layout()
+        
+        # Save if requested
+        if save_path:
+            plt.savefig(save_path, dpi=dpi, bbox_inches='tight')
+                
+        return fig, ax
+    
+    # Attach the plotting method to the DataFrame
+    summary_df.plot_prediction_heatmap = plot_prediction_heatmap
     
     return summary_df
 

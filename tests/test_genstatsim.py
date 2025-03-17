@@ -1,12 +1,10 @@
 import numpy as np
 import pandas as pd
 import pytest
-from io import StringIO
-import sys
 from ccrvam import (
     bootstrap_ccram, 
     permutation_test_ccram, 
-    bootstrap_predict_category_summary, 
+    bootstrap_predict_ccr_summary, 
 )
 from ccrvam.checkerboard.genstatsim import _bootstrap_predict_category_multi
 
@@ -220,7 +218,7 @@ def test_bootstrap_predict_category_multi_axes(table_4d):
 
 def test_prediction_summary_multi(table_4d):
     """Test multi-dimensional prediction summary."""
-    summary_df = bootstrap_predict_category_summary(
+    summary_df = bootstrap_predict_ccr_summary(
         table_4d,
         predictors=[1, 2],
         predictors_names=["X1","X2"],
@@ -233,7 +231,7 @@ def test_prediction_summary_multi(table_4d):
     assert np.all(summary_df >= 0)
     assert np.all(summary_df <= 100)
     
-    summary_df_full = bootstrap_predict_category_summary(
+    summary_df_full = bootstrap_predict_ccr_summary(
         table_4d,
         predictors=[1, 2, 3],
         predictors_names=["X1","X2","X3"],
@@ -249,11 +247,7 @@ def test_prediction_summary_multi(table_4d):
 def test_display_prediction_summary_multi(table_4d):
     """Test display of multi-dimensional prediction summary."""
     
-    # Capture stdout
-    stdout = StringIO()
-    sys.stdout = stdout
-    
-    summary_df = bootstrap_predict_category_summary(
+    summary_df = bootstrap_predict_ccr_summary(
         table_4d,
         predictors=[1, 2],
         predictors_names=["First", "Second"],
@@ -263,14 +257,7 @@ def test_display_prediction_summary_multi(table_4d):
         random_state=8990
     )
     
-    sys.stdout = sys.__stdout__
-    output = stdout.getvalue()
-    
     assert isinstance(summary_df, pd.DataFrame)
-    assert "Prediction Summary" in output
-    assert "First" in output
-    assert "Second" in output
-    assert "Fourth" in output
 
 def test_permutation_test_multiple_axes(table_4d):
     """Test permutation test with multiple conditioning axes."""

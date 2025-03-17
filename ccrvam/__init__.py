@@ -5,17 +5,17 @@ from ccrvam.checkerboard.genccrvam import GenericCCRVAM
 from ccrvam.checkerboard.utils import DataProcessor, gen_contingency_to_case_form, gen_case_form_to_contingency
 from ccrvam.checkerboard.genstatsim import (
         bootstrap_ccram,
-        bootstrap_predict_category_summary,
+        bootstrap_predict_ccr_summary,
         permutation_test_ccram,
     )
 
-__version__ = "0.9.1"
+__version__ = "0.9.2"
 __all__ = [
   "GenericCCRVAM",
   "DataProcessor",
   "gen_contingency_to_case_form",
   "gen_case_form_to_contingency",
   "bootstrap_ccram",
-  "bootstrap_predict_category_summary",
+  "bootstrap_predict_ccr_summary",
   "permutation_test_ccram",
 ]
