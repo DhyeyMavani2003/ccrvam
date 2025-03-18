@@ -484,11 +484,11 @@ class GenericCCRVAM:
             
             # Draw horizontal line across plot and add annotation
             ax.axhline(y=indep_y_pos, color='blue', linestyle='--', alpha=0.7, 
-                    label=f"Prediction under independence: {pred_cat_under_indep}")
+                    label=f"Prediction under joint independence: {pred_cat_under_indep}")
             
             # Add text label at right edge
             ax.text(len(predictions_df)-1, indep_y_pos + 0.3, 
-                    f"Prediction under independence: {pred_cat_under_indep}", 
+                    f"Prediction under joint independence: {pred_cat_under_indep}", 
                     color='blue', ha='right', va='bottom', fontsize=9)
         
         # Create a legend with combination mappings

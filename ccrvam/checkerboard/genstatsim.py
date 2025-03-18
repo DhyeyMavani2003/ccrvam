@@ -5,8 +5,12 @@ from typing import Union, Tuple, List
 import itertools
 import matplotlib.pyplot as plt
 import pandas as pd
+import warnings
 from .genccrvam import GenericCCRVAM
 from .utils import gen_contingency_to_case_form, gen_case_form_to_contingency
+
+# Suppress warnings
+warnings.filterwarnings("ignore")
 
 @dataclass
 class CustomBootstrapResult:
@@ -24,6 +28,8 @@ class CustomBootstrapResult:
         Array of bootstrapped values
     standard_error : float 
         Standard error of the bootstrap distribution
+    bootstrap_tables : np.ndarray, optional
+        Array of bootstrapped contingency tables
     histogram_fig : plt.Figure, optional
         Matplotlib figure of distribution plot
     """
@@ -32,6 +38,7 @@ class CustomBootstrapResult:
     confidence_interval: Tuple[float, float]
     bootstrap_distribution: np.ndarray
     standard_error: float
+    bootstrap_tables: np.ndarray = None
     histogram_fig: plt.Figure = None
 
     def plot_distribution(self, title=None):
@@ -76,7 +83,8 @@ def bootstrap_ccram(contingency_table: np.ndarray,
                    n_resamples: int = 9999,
                    confidence_level: float = 0.95,
                    method: str = 'percentile',
-                   random_state = None) -> CustomBootstrapResult:
+                   random_state = None,
+                   store_tables: bool = False) -> CustomBootstrapResult:
     """Perform bootstrap simulation for (S)CCRAM measure.
     
     Parameters
@@ -97,11 +105,13 @@ def bootstrap_ccram(contingency_table: np.ndarray,
         Bootstrap CI method
     random_state : optional
         Random state for reproducibility
+    store_tables : bool, default=False
+        Whether to store the bootstrapped contingency tables
         
     Returns
     -------
     CustomBootstrapResult
-        Bootstrap results including CIs and distribution
+        Bootstrap results including CIs, distribution and tables
     """
     if not isinstance(predictors, (list, tuple)):
         predictors = [predictors]
@@ -138,6 +148,11 @@ def bootstrap_ccram(contingency_table: np.ndarray,
     # Convert to case form using complete axis order
     cases = gen_contingency_to_case_form(contingency_table)
     
+    # Store bootstrap tables if requested
+    bootstrap_tables = None
+    if store_tables:
+        bootstrap_tables = np.zeros((n_resamples,) + contingency_table.shape)
+    
     # Split variables based on position in all_axes
     axis_positions = {axis: i for i, axis in enumerate(all_axes)}
     source_data = [cases[:, axis_positions[axis]] for axis in parsed_predictors]
@@ -160,12 +175,17 @@ def bootstrap_ccram(contingency_table: np.ndarray,
             
         if cases.ndim == 3:
             results = []
-            for batch_cases in cases:
+            for i, batch_cases in enumerate(cases):
                 table = gen_case_form_to_contingency(
                     batch_cases, 
                     shape=contingency_table.shape,
                     axis_order=all_axes
                 )
+                
+                # Store table if requested
+                if store_tables and bootstrap_tables is not None and i < n_resamples:
+                    bootstrap_tables[i] = table
+                
                 ccrvam = GenericCCRVAM.from_contingency_table(table)
                 value = ccrvam.calculate_CCRAM(predictors, response, scaled)
                 results.append(value)
@@ -195,7 +215,8 @@ def bootstrap_ccram(contingency_table: np.ndarray,
         observed_value=observed_ccram,
         confidence_interval=res.confidence_interval,
         bootstrap_distribution=res.bootstrap_distribution,
-        standard_error=res.standard_error
+        standard_error=res.standard_error,
+        bootstrap_tables=bootstrap_tables
     )
     
     result.plot_distribution(f'Bootstrap Distribution: {metric_name}')
@@ -483,6 +504,8 @@ class CustomPermutationResult:
         Permutation test p-value
     null_distribution : np.ndarray
         Array of values under null hypothesis
+    permutation_tables : np.ndarray, optional
+        Array of permuted contingency tables
     histogram_fig : plt.Figure, optional
         Matplotlib figure of distribution plot
     """
@@ -490,6 +513,7 @@ class CustomPermutationResult:
     observed_value: float
     p_value: float
     null_distribution: np.ndarray
+    permutation_tables: np.ndarray = None
     histogram_fig: plt.Figure = None
 
     def plot_distribution(self, title=None):
@@ -518,7 +542,8 @@ def permutation_test_ccram(contingency_table: np.ndarray,
                           scaled: bool = False,
                           alternative: str = 'greater',
                           n_resamples: int = 9999,
-                          random_state = None) -> CustomPermutationResult:
+                          random_state = None,
+                          store_tables: bool = False) -> CustomPermutationResult:
     """Perform permutation test for (S)CCRAM measure.
     
     Parameters
@@ -537,11 +562,13 @@ def permutation_test_ccram(contingency_table: np.ndarray,
         Number of permutations
     random_state : int, optional
         Random state for reproducibility
+    store_tables : bool, default=False
+        Whether to store the permuted contingency tables
         
     Returns
     -------
     CustomPermutationResult
-        Test results including p-value and null distribution
+        Test results including p-value, null distribution and tables
     """
     if not isinstance(predictors, (list, tuple)):
         predictors = [predictors]
@@ -574,6 +601,11 @@ def permutation_test_ccram(contingency_table: np.ndarray,
     # Convert to case form using complete axis order
     cases = gen_contingency_to_case_form(contingency_table)
     
+    # Store permutation tables if requested
+    permutation_tables = None
+    if store_tables:
+        permutation_tables = np.zeros((n_resamples,) + contingency_table.shape)
+    
     # Split variables based on position in all_axes
     axis_positions = {axis: i for i, axis in enumerate(all_axes)}
     source_data = [cases[:, axis_positions[axis]] for axis in parsed_predictors]
@@ -596,12 +628,17 @@ def permutation_test_ccram(contingency_table: np.ndarray,
             
         if cases.ndim == 3:
             results = []
-            for batch_cases in cases:
+            for i, batch_cases in enumerate(cases):
                 table = gen_case_form_to_contingency(
                     batch_cases, 
                     shape=contingency_table.shape,
                     axis_order=all_axes
                 )
+                
+                # Store table if requested and not the observed table (first one)
+                if store_tables and permutation_tables is not None and i > 0 and i <= n_resamples:
+                    permutation_tables[i-1] = table
+                
                 ccrvam = GenericCCRVAM.from_contingency_table(table)
                 value = ccrvam.calculate_CCRAM(predictors, response, scaled)
                 results.append(value)
@@ -629,7 +666,8 @@ def permutation_test_ccram(contingency_table: np.ndarray,
         metric_name=metric_name,
         observed_value=perm.statistic,
         p_value=perm.pvalue,
-        null_distribution=perm.null_distribution
+        null_distribution=perm.null_distribution,
+        permutation_tables=permutation_tables
     )
     
     result.plot_distribution(f'Null Distribution: {metric_name}')
