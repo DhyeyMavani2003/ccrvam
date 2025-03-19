@@ -4,5 +4,10 @@
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
-    "autoDocstring.docstringFormat": "sphinx"
+    "autoDocstring.docstringFormat": "sphinx",
+    "python.languageServer": "Pylance",
+    "python.analysis.extraPaths": [
+      "${workspaceFolder}"
+    ],
+    "python.analysis.indexing": true
 }

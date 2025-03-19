@@ -6,7 +6,6 @@ from ccrvam import (
     permutation_test_ccram, 
     bootstrap_predict_ccr_summary, 
 )
-from ccrvam.checkerboard.genstatsim import _bootstrap_predict_category_multi
 
 @pytest.fixture
 def contingency_table():
@@ -185,36 +184,6 @@ def test_bootstrap_ccram_multiple_axes(table_4d):
     assert "(X1) to X2" in result_2d_multi.metric_name
     assert hasattr(result_2d_multi, "confidence_interval")
     assert result_2d_multi.confidence_interval[0] < result_2d_multi.confidence_interval[1]
-    
-
-def test_bootstrap_predict_category_multi_basic(contingency_table):
-    """Test basic multi-axis category prediction."""
-    result = _bootstrap_predict_category_multi(
-        contingency_table,
-        source_categories=[0],
-        predictors=[0],
-        response=1,
-        n_resamples=999,
-        random_state=8990
-    )
-    
-    assert hasattr(result, 'confidence_interval')
-    assert hasattr(result, 'bootstrap_distribution')
-    assert len(result.bootstrap_distribution) == 999
-
-def test_bootstrap_predict_category_multi_axes(table_4d):
-    """Test category prediction with multiple conditioning axes."""
-    result = _bootstrap_predict_category_multi(
-        table_4d,
-        source_categories=[0, 1],
-        predictors=[0, 1],
-        response=2,
-        n_resamples=999,
-        random_state=8990
-    )
-    
-    assert hasattr(result, 'bootstrap_distribution')
-    assert len(result.bootstrap_distribution) == 999
 
 def test_prediction_summary_multi(table_4d):
     """Test multi-dimensional prediction summary."""

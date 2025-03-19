@@ -5,6 +5,7 @@ import os
 from .utils import gen_case_form_to_contingency
 
 class GenericCCRVAM:
+    """Central Generic Checkerboard Copula Regression and Visualization of Association Measure class object."""
     @classmethod
     def from_contingency_table(cls, contingency_table):
         """
@@ -12,30 +13,20 @@ class GenericCCRVAM:
 
         Parameters
         ----------
-        contingency_table : numpy.ndarray
+        - contingency_table : `np.ndarray`
             A 2D contingency table of counts/frequencies.
 
         Returns
         -------
-        CCRVAM
+        `GenericCCRVAM` :
             A new instance initialized with the probability matrix.
 
         Raises
         ------
-        ValueError
-            If the input table contains negative values or all zeros.
-            If the input table is not 2-dimensional.
+        `ValueError` :
+            - If the input table contains negative values or all zeros.
+            - If the input table is not 2-dimensional.
 
-        Examples
-        --------
-        >>> table = np.array([
-            [0, 0, 20],
-            [0, 10, 0],
-            [20, 0, 0],
-            [0, 10, 0],
-            [0, 0, 20]
-        ])
-        >>> ccrvam = GenericCCRVAM.from_contingency_table(table)
         """
         if not isinstance(contingency_table, np.ndarray):
             contingency_table = np.array(contingency_table)
@@ -57,32 +48,22 @@ class GenericCCRVAM:
 
         Parameters
         ----------
-        cases : numpy.ndarray
+        - cases : `np.ndarray`
             A 2D array where each row represents a case.
-        shape : tuple
+        - shape : `tuple`
             Shape of the contingency table to create.
 
         Returns
         -------
-        CCRVAM
+        `GenericCCRVAM` :
             A new instance initialized with the probability matrix.
 
         Raises
         ------
-        ValueError
-            If the input cases are not 2-dimensional.
-            If the shape tuple does not match the number of variables.
+        `ValueError` :
+            - If the input cases are not 2-dimensional.
+            - If the shape tuple does not match the number of variables.
 
-        Examples
-        --------
-        >>> cases = np.array([
-            [0, 0, 2],
-            [0, 1, 0],
-            [2, 0, 0],
-            [0, 1, 0],
-            [0, 0, 2]
-        ])
-        >>> ccrvam = GenericCCRVAM.from_cases(cases, (3, 2, 3))
         """
         if not isinstance(cases, np.ndarray):
             cases = np.array(cases)
@@ -145,7 +126,7 @@ class GenericCCRVAM:
         
         Returns
         -------
-        numpy.ndarray
+        `np.ndarray` :
             A matrix of integer counts representing the contingency table.
             The values are rounded to the nearest integer after scaling.
         
@@ -171,12 +152,17 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        predictors : list
+        - predictors : `List`
             List of 1-indexed predictors axes for directional association
-        response : int
+        - response : `int`
             1-indexed target response axis for directional association
-        scaled : bool, optional
+        - scaled : `bool`, optional
             Whether to return standardized measure (default: False)
+            
+        Returns
+        -------
+        `float` :
+            CCRAM value for the given predictors and response
         """
         if not isinstance(predictors, (list, tuple)):
             predictors = [predictors]
@@ -231,21 +217,17 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        predictors : list
+        - predictors : `List`
             List of 1-indexed predictors axes for category prediction
-        response : int
+        - response : `int`
             1-indexed target response axis for category prediction
-        variable_names : dict, optional
+        - variable_names : `dict`, optional
             Dictionary mapping 1-indexed variable indices to names (default: None)
             
         Returns
         -------
-        pandas.DataFrame
+        `pd.DataFrame` :
             DataFrame containing source and predicted categories
-        
-        Examples
-        --------
-        >>> ccrvam.get_predictions_ccr([1, 2], 3)
         
         Notes
         -----
@@ -300,12 +282,12 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        response : int
+        - response : `int`
             1-indexed target response axis
             
         Returns
         -------
-        int
+        `int` :
             The predicted category (1-indexed) for the response variable 
             under joint independence
         
@@ -337,12 +319,12 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        var_index : int
+        - var_index : `int`
             1-Indexed axis of the variable for which to calculate scores
             
         Returns
         -------
-        numpy.ndarray
+        `np.ndarray` :
             Array containing checkerboard scores for the given axis
         """
         parsed_axis = var_index - 1
@@ -353,12 +335,12 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        var_index : int
+        - var_index : `int`
             1-Indexed axis of the variable for which to calculate variance
             
         Returns
         -------
-        float
+        `float` :
             Variance of score S for the given axis
         """
         parsed_axis = var_index - 1
@@ -371,26 +353,27 @@ class GenericCCRVAM:
         
         Parameters
         ----------
-        predictors : list
+        - predictors : `List`
             List of 1-indexed predictor axes
-        response : int
+        - response : `int`
             1-indexed response axis
-        variable_names : dict, optional
+        - variable_names : `dict`, optional
             Dictionary mapping indices to variable names
-        legend_style : str, optional
+        - legend_style : `str`, optional
             How to display predictor combinations: 'side' (default) or 'xaxis'
-        show_indep_line : bool, optional
+        - show_indep_line : `bool`, optional
             Whether to show the prediction under joint independence (default: True)
-        figsize : tuple, optional
+        - figsize : `Tuple`, optional
             Figure size (width, height)
-        save_path : str, optional
+        - save_path : `str`, optional
             Path to save the plot (e.g. 'plots/ccr_pred.pdf')
-        dpi : int, optional
+        - dpi : `int`, optional
             Resolution for saving raster images (png, jpg)
         
         Returns
         -------
-        None
+        `None` : 
+            (Plot is displayed or saved to file as per user preferences and settings)
         """
         
         # Flag to hide response default name if variable_names is not provided
@@ -729,10 +712,10 @@ class GenericCCRVAM:
         predictors, 
         response
     ):
+        """Helper Function: Vectorized prediction with multiple conditioning axes."""
         if not isinstance(predictors, (list, tuple)):
             predictors = [predictors]
-        
-        """Vectorized prediction with multiple conditioning axes."""
+
         # Get corresponding u values
         u_values = [
             self.marginal_cdfs[axis][cats + 1]

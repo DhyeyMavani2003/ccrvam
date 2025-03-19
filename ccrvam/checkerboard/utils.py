@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Union, Dict, List, Optional
 
 class DataProcessor:
-    """Enhanced data processing for CCRVAM analysis."""
+    """Data processing engine for CCRVAM analysis."""
     
     @staticmethod
     def load_data(
@@ -21,20 +21,25 @@ class DataProcessor:
         
         Parameters
         ----------
-        data : Union[str, np.ndarray, pd.DataFrame]
+        - data : `Union[str, np.ndarray, pd.DataFrame]`
             Data source - can be file path or direct data
-        data_form : str
+        - data_form : `str`
             One of: "case_form", "frequency_form", "table_form"
-        dimension : tuple 
+        - dimension : `Tuple` 
             Dimension of contingency table (categories per variable)
-        var_list : List[str], optional
+        - var_list : `List[str]`, optional
             List of variable names in order
-        category_map : Dict[str, Dict[str, int]], optional
+        - category_map : `Dict[str, Dict[str, int]]`, optional
             Mapping of category labels to numeric values for each variable
-        named : bool, optional
+        - named : `bool`, optional
             Whether to use first row as variable names
-        delimiter : str, optional
+        - delimiter : `str`, optional
             Delimiter for text files
+            
+        Returns
+        -------
+        `np.ndarray` :
+            Processed data in contingency table format
         """
         # Validate inputs
         if data_form not in ["case_form", "frequency_form", "table_form"]:
@@ -88,13 +93,13 @@ class DataProcessor:
         var_list: List[str],
         data_form: str
     ) -> np.ndarray:
-        """Apply category mappings to convert string labels to numeric values."""
+        """Helper to apply category mappings to convert string labels to numeric values."""
         if data.dtype.kind in 'ifu':  # Already numeric
             return data
             
         result = data.copy()
         
-        def map_category(value, var_map):
+        def _map_category(value, var_map):
             """Helper to map categories with error handling"""
             if isinstance(value, str):
                 value = value.strip()  # Remove whitespace
@@ -110,7 +115,7 @@ class DataProcessor:
                 var = var_list[i] if var_list else str(i)
                 if var in category_map:
                     try:
-                        result[:, i] = [map_category(x, category_map[var]) for x in data[:, i]]
+                        result[:, i] = [_map_category(x, category_map[var]) for x in data[:, i]]
                     except (ValueError, TypeError) as e:
                         raise ValueError(f"Error converting categories for variable '{var}': {e}")
         
@@ -129,7 +134,7 @@ class DataProcessor:
 
     @staticmethod
     def _process_case_form(data: np.ndarray, shape: tuple) -> np.ndarray:
-        """Convert case form data to contingency table."""
+        """Helper to convert case form data to contingency table."""
         if data.ndim != 2:
             raise ValueError("Case form data must be 2D array")
             
@@ -151,7 +156,7 @@ class DataProcessor:
 
     @staticmethod 
     def _process_frequency_form(data: np.ndarray, shape: tuple) -> np.ndarray:
-        """Convert frequency form data to contingency table."""
+        """Helper to convert frequency form data to contingency table."""
         if data.ndim != 2:
             raise ValueError("Frequency form data must be 2D array")
             
@@ -174,7 +179,7 @@ class DataProcessor:
 
     @staticmethod
     def _process_table_form(data: np.ndarray, shape: tuple) -> np.ndarray:
-        """Process table form data."""
+        """Helper to process table form data."""
         if data.shape != shape:
             raise ValueError(f"Table shape {data.shape} doesn't match specified shape {shape}")
         return data.astype(int)
@@ -184,13 +189,13 @@ def gen_contingency_to_case_form(contingency_table: np.ndarray) -> np.ndarray:
     
     Parameters
     ----------
-    contingency_table : np.ndarray
+    - contingency_table : `np.ndarray`
         N-dimensional contingency table
         
     Returns
     -------
-    np.ndarray
-        Array of cases where each row represents coordinates
+    `np.ndarray` :
+        Array of cases where each row represents categories observed in a given case
     """
     # Get indices of non-zero elements
     indices = np.nonzero(contingency_table)
@@ -210,16 +215,16 @@ def gen_case_form_to_contingency(cases: np.ndarray,
     
     Parameters
     ----------
-    cases : np.ndarray
+    - cases : `np.ndarray`
         Array of cases where each row is a sample
-    shape : tuple
+    - shape : `Tuple`
         Shape of output contingency table
-    axis_order : list, optional
+    - axis_order : `List`, optional
         Order of axes for reconstruction
     
     Returns
     -------
-    np.ndarray
+    `np.ndarray` :
         Reconstructed contingency table
     """
     if axis_order is None:
@@ -229,7 +234,8 @@ def gen_case_form_to_contingency(cases: np.ndarray,
     n_axes = len(shape)
     
     # Create full index with zeros for missing axes
-    def get_full_index(case, axis_order):
+    def _get_full_index(case, axis_order):
+        """Helper to create full index from case."""
         idx = [0] * n_axes
         for i, axis in enumerate(axis_order):
             idx[axis] = int(case[i])
@@ -240,12 +246,12 @@ def gen_case_form_to_contingency(cases: np.ndarray,
         # For batched data
         for batch in cases:
             for case in batch:
-                idx = get_full_index(case, axis_order)
+                idx = _get_full_index(case, axis_order)
                 table[idx] += 1
     else:
         # For single batch
         for case in cases:
-            idx = get_full_index(case, axis_order)
+            idx = _get_full_index(case, axis_order)
             table[idx] += 1
             
     return table
