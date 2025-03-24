@@ -387,7 +387,8 @@ def bootstrap_predict_ccr_summary(
     summary_df.predictions = pred_df
     
     def plot_prediction_heatmap(df=summary_df, figsize=None, cmap='Blues', 
-                            show_values=True, save_path=None, dpi=300):
+                            show_values=True, save_path=None, dpi=300,
+                            show_indep_line=True):
         """
         Plot prediction percentages as a heatmap visualization.
         
@@ -403,14 +404,16 @@ def bootstrap_predict_ccr_summary(
             Path to save the plot
         - dpi : `int`, optional
             Resolution for saved image
+        - show_indep_line : `bool`, optional
+            Whether to show dotted line for predictions under joint independence
         """
         # Get data dimensions
         n_rows, n_cols = df.shape
         
         # Set figure size based on data dimensions
         if figsize is None:
-            figsize = (max(8, min(n_cols * 1.2, 16)), 
-                    max(6, min(n_rows * 1.2, 12)))
+            figsize = (max(8, n_cols * 1.2), 
+                    max(6, n_rows * 1.2))
         
         fig, ax = plt.subplots(figsize=figsize)
         
@@ -480,9 +483,25 @@ def bootstrap_predict_ccr_summary(
                             ax.plot(j, i, 'o', color='white', markersize=8, markerfacecolor='white')
                             break
         
+        # Add dotted line for independence predictions if requested
+        if show_indep_line and has_predictions:
+            ccrvam = GenericCCRVAM.from_contingency_table(table)
+            # Convert to plot y-coordinate (top-down ordering)
+            response_cats = ccrvam.P.shape[response]
+            pred_cat_under_indep = ccrvam.get_prediction_under_indep(response+1)
+            indep_y_pos = response_cats - pred_cat_under_indep
+            ax.axhline(y=indep_y_pos, color='red', linestyle='--', linewidth=1.1, alpha=0.9)
+        
         # Add title and labels
         pred_names = ", ".join(predictors_names)
-        title = f"Bootstrap Prediction Percentages\n{response_name} Categories Given {pred_names}"
+        title_base = f"Bootstrap Prediction Percentages\n{response_name} Categories Given {pred_names}"
+        
+        # Add information about dotted line if it's shown
+        if show_indep_line:
+            title = f"{title_base}\nDotted line: predicted category under joint independence"
+        else:
+            title = title_base
+            
         ax.set_title(title)
         
         ax.set_xlabel(f"Category Combinations of {var_names_str}")
