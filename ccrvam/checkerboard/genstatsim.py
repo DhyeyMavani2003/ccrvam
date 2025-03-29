@@ -383,9 +383,6 @@ def bootstrap_predict_ccr_summary(
         # Store the category number directly
         pred_df.loc["Predicted", col_name] = pred_cat
     
-    # Add predictions DataFrame as an attribute to the summary DataFrame
-    summary_df.predictions = pred_df
-    
     def plot_prediction_heatmap(df=summary_df, figsize=None, cmap='Blues', 
                             show_values=True, save_path=None, dpi=300,
                             show_indep_line=True):
@@ -523,6 +520,13 @@ def bootstrap_predict_ccr_summary(
             fig.savefig(save_path, dpi=dpi, bbox_inches='tight')
             
         return fig, ax
+    
+    # Transpose the DataFrame for better view on the user side
+    summary_df = np.transpose(summary_df)
+    
+    # Add predictions DataFrame as an attribute to the summary DataFrame
+    # This will allow us to access the predictions in the same format as summary_df
+    summary_df.predictions = np.transpose(pred_df)
     
     # Attach the plotting method to the DataFrame
     summary_df.plot_prediction_heatmap = plot_prediction_heatmap
