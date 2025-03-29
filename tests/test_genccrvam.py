@@ -411,7 +411,7 @@ def test_from_cases_variance(cases_4d, expected_shape):
     assert variance >= 0
     assert np.isclose(variance * 12, 0.9585)
 
-def test_from_cases_invalid_input():
+def test_from_cases_invalid_input(cases_4d):
     """Test error handling for invalid inputs."""
     invalid_cases = np.array([[0,1], [1,2]])  # Wrong number of dimensions
     invalid_shape = (2, 2)  # Wrong shape specification

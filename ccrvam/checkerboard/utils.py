@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Union, Dict, List, Optional
 
 class DataProcessor:
-    """Data processing engine for CCRVAM analysis."""
+    """Statistical data processing engine for contingency table analysis."""
     
     @staticmethod
     def load_data(
@@ -17,29 +17,33 @@ class DataProcessor:
         delimiter: str = None
     ) -> np.ndarray:
         """
-        Load and process data with support for named variables and categories.
+        Load and process statistical data for contingency table analysis.
         
-        Parameters
-        ----------
-        - data : `Union[str, np.ndarray, pd.DataFrame]`
-            Data source - can be file path or direct data
-        - data_form : `str`
-            One of: "case_form", "frequency_form", "table_form"
-        - dimension : `Tuple` 
-            Dimension of contingency table (categories per variable)
-        - var_list : `List[str]`, optional
-            List of variable names in order
-        - category_map : `Dict[str, Dict[str, int]]`, optional
-            Mapping of category labels to numeric values for each variable
-        - named : `bool`, optional
-            Whether to use first row as variable names
-        - delimiter : `str`, optional
-            Delimiter for text files
+        Input Arguments
+        --------------
+        - `data` : Data source - file path, raw data array, or data frame
             
-        Returns
+        - `data_form` : Statistical format of the data: "case_form" (individual observations), "frequency_form" (observations with counts), or "table_form" (already a contingency table)
+
+        - `dimension` : Dimensions of the contingency table (number of categories for each variable)
+            
+        - `var_list` : Names of variables in order of appearance in the data (optional)
+            
+        - `category_map` : Mapping of categorical labels to numeric indices for each variable (optional)
+            
+        - `named` : Whether the first row contains variable names (for file input)
+            
+        - `delimiter` : Column separator character for text files (optional)
+            
+        Outputs
         -------
-        `np.ndarray` :
-            Processed data in contingency table format
+        Processed contingency table for statistical analysis
+            
+        Warnings/Errors
+        --------------
+        - `ValueError` : If data_form is invalid or inputs are inconsistent
+            
+        - `FileNotFoundError` : If the specified data file cannot be found
         """
         # Validate inputs
         if data_form not in ["case_form", "frequency_form", "table_form"]:
@@ -65,9 +69,6 @@ class DataProcessor:
             if var_list is None and named:
                 var_list = list(data.columns)
             data = data.to_numpy()
-            
-        elif not isinstance(data, np.ndarray):
-            raise TypeError("data must be file path, numpy array or pandas DataFrame")
 
         # Convert string categories to numeric if needed
         if category_map is not None:
@@ -93,7 +94,7 @@ class DataProcessor:
         var_list: List[str],
         data_form: str
     ) -> np.ndarray:
-        """Helper to apply category mappings to convert string labels to numeric values."""
+        """Helper to convert categorical labels to numeric values."""
         if data.dtype.kind in 'ifu':  # Already numeric
             return data
             
@@ -184,18 +185,19 @@ class DataProcessor:
             raise ValueError(f"Table shape {data.shape} doesn't match specified shape {shape}")
         return data.astype(int)
         
-def gen_contingency_to_case_form(contingency_table: np.ndarray) -> np.ndarray:
-    """Convert N-dimensional contingency table to case form.
+def gen_contingency_to_case_form(
+    contingency_table: np.ndarray
+) -> np.ndarray:
+    """
+    Convert an N-dimensional contingency table to individual observations.
     
-    Parameters
-    ----------
-    - contingency_table : `np.ndarray`
-        N-dimensional contingency table
-        
-    Returns
+    Input Arguments
+    --------------
+    - `contingency_table` : N-dimensional contingency table containing frequency counts
+
+    Outputs
     -------
-    `np.ndarray` :
-        Array of cases where each row represents categories observed in a given case
+    Array where each row represents an observation with categorical values, with frequencies expanded to individual rows
     """
     # Get indices of non-zero elements
     indices = np.nonzero(contingency_table)
@@ -208,24 +210,25 @@ def gen_contingency_to_case_form(contingency_table: np.ndarray) -> np.ndarray:
     
     return np.array(cases)
 
-def gen_case_form_to_contingency(cases: np.ndarray, 
-                                shape: tuple,
-                                axis_order: list = None) -> np.ndarray:
-    """Convert cases to contingency table with specified axis ordering.
+def gen_case_form_to_contingency(
+    cases: np.ndarray,
+    shape: tuple,
+    axis_order: Optional[list] = None
+) -> np.ndarray:
+    """
+    Convert individual observations to an N-dimensional contingency table.
     
-    Parameters
-    ----------
-    - cases : `np.ndarray`
-        Array of cases where each row is a sample
-    - shape : `Tuple`
-        Shape of output contingency table
-    - axis_order : `List`, optional
-        Order of axes for reconstruction
+    Input Arguments
+    --------------
+    - `cases` : Array where each row represents an observation with categorical values
+
+    - `shape` : Dimensions of the output contingency table
+
+    - `axis_order` : Mapping of case columns to contingency table dimensions (optional)
     
-    Returns
+    Outputs
     -------
-    `np.ndarray` :
-        Reconstructed contingency table
+    N-dimensional contingency table of frequency counts
     """
     if axis_order is None:
         axis_order = list(range(cases.shape[1]))

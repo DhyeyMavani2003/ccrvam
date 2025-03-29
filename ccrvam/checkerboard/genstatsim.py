@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import bootstrap, permutation_test
 from dataclasses import dataclass
-from typing import Union, Tuple, List
+from typing import Union, Tuple, List, Optional
 import itertools
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,24 +15,18 @@ warnings.filterwarnings("ignore")
 
 @dataclass
 class CustomBootstrapResult:
-    """Container for bootstrap simulation results with visualization capabilities.
+    """
+    Container for bootstrap simulation results with statistical visualization capabilities.
     
-    Parameters
-    ----------
-    - metric_name : `str`
-        Name of the metric being bootstrapped
-    - observed_value : `float`
-        Original observed value of the metric
-    - confidence_interval : `Tuple[float, float]`
-        Lower and upper confidence interval bounds
-    - bootstrap_distribution : `np.ndarray`
-        Array of bootstrapped values
-    - standard_error : `float` 
-        Standard error of the bootstrap distribution
-    - bootstrap_tables : `np.ndarray`, optional
-        Array of bootstrapped contingency tables
-    - histogram_fig : `plt.Figure`, optional
-        Matplotlib figure of distribution plot
+    Input Arguments
+    --------------
+    - `metric_name` : Name of the metric being bootstrapped
+    - `observed_value` : Original observed value of the metric
+    - `confidence_interval` : Lower and upper confidence interval bounds
+    - `bootstrap_distribution` : Array of bootstrapped values
+    - `standard_error` : Standard error of the bootstrap distribution
+    - `bootstrap_tables` : Array of bootstrapped contingency tables (optional)
+    - `histogram_fig` : Matplotlib figure of distribution plot (optional)
     """
     
     metric_name: str 
@@ -40,18 +34,35 @@ class CustomBootstrapResult:
     confidence_interval: Tuple[float, float]
     bootstrap_distribution: np.ndarray
     standard_error: float
-    bootstrap_tables: np.ndarray = None
-    histogram_fig: plt.Figure = None
+    bootstrap_tables: Optional[np.ndarray] = None
+    histogram_fig: Optional[plt.Figure] = None
 
-    def plot_distribution(self, title=None):
-        """Plot bootstrap distribution with observed value."""
+    def plot_distribution(
+        self, 
+        title: Optional[str] = None
+    ) -> Optional[plt.Figure]:
+        """
+        Plot bootstrap distribution with observed value.
+
+        Input Arguments
+        --------------
+        - `title` : Title of the plot (optional)
+
+        Outputs
+        -------
+        Matplotlib figure of distribution plot
+        
+        Warnings/Errors
+        --------------
+        - `Exception` : If the plot cannot be created
+        """
         try:
             fig, ax = plt.subplots(figsize=(10, 6))
             
             data_range = np.ptp(self.bootstrap_distribution)
             
             # Handle both exact zeros and very small ranges due to floating-point precision
-            if data_range < 1e-10:  # Choose an appropriate small threshold
+            if data_range < 1e-10:
                 # Almost degenerate case - all values are approximately the same
                 unique_value = np.mean(self.bootstrap_distribution)
                 ax.axvline(unique_value, color='blue', linewidth=2, 
@@ -78,44 +89,41 @@ class CustomBootstrapResult:
             print(f"Warning: Could not create plot: {str(e)}")
             return None
 
-def bootstrap_ccram(contingency_table: np.ndarray,
-                   predictors: Union[List[int], int],
-                   response: int, 
-                   scaled: bool = False,
-                   n_resamples: int = 9999,
-                   confidence_level: float = 0.95,
-                   method: str = 'percentile',
-                   random_state = None,
-                   store_tables: bool = False) -> CustomBootstrapResult:
-    """Perform bootstrap simulation for (S)CCRAM measure.
-    
-    Parameters
-    ----------
-    - contingency_table : `np.ndarray`
-        Input contingency table
-    - predictors : `Union[List[int], int]`
-        List of 1-indexed predictors axes for category prediction
-    - response : `int`
-        1-indexed target response axis for category prediction
-    - scaled : `bool`, default=False
-        Whether to use scaled CCRAM (SCCRAM)
-    - n_resamples : `int`, default=9999
-        Number of bootstrap resamples
-    - confidence_level : `float`, default=0.95
-        Confidence level for intervals
-    - method : `str`, default='percentile'
-        Bootstrap CI method
-    - random_state : `int`, optional
-        Random state for reproducibility
-    - store_tables : `bool`, default=False
-        Whether to store the bootstrapped contingency tables
-        
-    Returns
-    -------
-    - `CustomBootstrapResult`
-        Bootstrap results including CIs, distribution and tables
+def bootstrap_ccram(
+    contingency_table: np.ndarray,
+    predictors: Union[List[int], int],
+    response: int, 
+    scaled: bool = False,
+    n_resamples: int = 9999,
+    confidence_level: float = 0.95,
+    method: str = 'percentile',
+    random_state: Optional[int] = None,
+    store_tables: bool = False
+) -> CustomBootstrapResult:
     """
-    if not isinstance(predictors, (list, tuple)):
+    Perform bootstrap simulation for (S)CCRAM measure.
+    
+    Input Arguments
+    --------------
+    - `contingency_table` : Input contingency table of frequency counts
+    - `predictors` : List of 1-indexed predictors axes for category prediction
+    - `response` : 1-indexed target response axis for category prediction
+    - `scaled` : Whether to use scaled CCRAM (SCCRAM) (default=False)
+    - `n_resamples` : Number of bootstrap resamples (default=9999)
+    - `confidence_level` : Confidence level for statistical intervals (default=0.95)
+    - `method` : Bootstrap CI method (default='percentile')
+    - `random_state` : Random state for reproducibility (optional)
+    - `store_tables` : Whether to store the bootstrapped contingency tables (default=False)
+        
+    Outputs
+    -------
+    Bootstrap result class containing CIs, distribution and tables
+        
+    Warnings/Errors
+    --------------
+    - `ValueError` : If predictor or response axis is out of bounds
+    """
+    if not isinstance(predictors, list):
         predictors = [predictors]
         
     # Input validation and 0-indexing
@@ -225,43 +233,46 @@ def bootstrap_ccram(contingency_table: np.ndarray,
     return result
 
 def bootstrap_predict_ccr_summary(
-    table,
-    predictors,
-    predictors_names=None,
-    response=None,
-    response_name=None,
-    n_resamples=9999,
-    random_state=None
-):
+    table: np.ndarray,
+    predictors: Union[List[int], int],
+    predictors_names: Optional[List[str]] = None,
+    response: Optional[int] = None,
+    response_name: Optional[str] = None,
+    n_resamples: int = 9999,
+    random_state: Optional[int] = None
+) -> pd.DataFrame:
     """
     Compute bootstrap prediction matrix with percentages for CCR.
     
-    Parameters:
-    -----------
-    - table : `np.ndarray`
-        Contingency table. Can be 2D, 3D, 4D, etc.
-    - predictors : `List`
-        List of predictor dimensions (1-indexed).
-    - predictors_names : `List`, optional
-        Names for the predictor dimensions.
-    - response : `int`, optional
-        Index of the response dimension (1-indexed). If None, the last dimension is used.
-    - response_name : `str`, optional
-        Name for the response dimension.
-    - n_resamples : `int`, optional
-        Number of bootstrap resamples.
-    - random_state : `int`, optional
-        Random seed for reproducibility.
+    Input Arguments
+    --------------
+    - `table` : Contingency table of frequency counts
+    - `predictors` : List of predictor dimensions (1-indexed)
+    - `predictors_names` : Names of predictor variables (optional)
+    - `response` : Response variable dimension (1-indexed). If None, the last dimension is used.
+    - `response_name` : Name of response variable (optional)
+    - `n_resamples` : Number of bootstrap resamples (default=9999)
+    - `random_state` : Random state for reproducibility (optional)
+        
+    Outputs
+    -------
+    CCR Prediction matrix post-bootstrap showing percentage for each combination of predictor values.
     
-    Returns:
-    --------
-    - `pd.DataFrame`
-        CCR Prediction matrix post-bootstrap showing percentage for each combination of predictor values.
+    Warnings/Errors
+    --------------
+    - `ValueError` : If predictor or response axis is out of bounds
+    
+    Notes
+    -----
+    - The output is a pandas DataFrame with the predicted category for each combination of predictor values.
+    - The output also includes a method `plot_prediction_heatmap` to plot the prediction matrix as a heatmap.
     """
-    
     # Set random seed if provided
     if random_state is not None:
         np.random.seed(random_state)
+        
+    if not isinstance(predictors, list):
+        predictors = [predictors]
     
     # Determine response dimension if not specified
     if response is None:
@@ -346,8 +357,6 @@ def bootstrap_predict_ccr_summary(
     # Remove rows with all zeros
     summary_df = summary_df.loc[(summary_df != 0).any(axis=1)]
     
-    # Create DataFrame with Predicted Categories using get_predictions_ccr but in the same format as summary_df
-    
     # Initialize CCRVAM model on original table
     ccrvam_orig = GenericCCRVAM.from_contingency_table(table)
     
@@ -383,26 +392,31 @@ def bootstrap_predict_ccr_summary(
         # Store the category number directly
         pred_df.loc["Predicted", col_name] = pred_cat
     
-    def plot_prediction_heatmap(df=summary_df, figsize=None, cmap='Blues', 
-                            show_values=True, save_path=None, dpi=300,
-                            show_indep_line=True):
+    def plot_prediction_heatmap(
+        df: pd.DataFrame = summary_df, 
+        figsize: Optional[Tuple[int, int]] = None, 
+        show_values: bool = True,
+        show_indep_line: bool = True,
+        cmap: str = 'Blues', 
+        save_path: Optional[str] = None, 
+        dpi: Optional[int] = 300
+    ) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plot prediction percentages as a heatmap visualization.
         
-        Parameters
-        ----------
-        - figsize : `Tuple`, optional
-            Figure size (width, height)
-        - cmap : `str`, optional
-            Colormap for heatmap
-        - show_values : `bool`, optional
-            Whether to show percentage values
-        - save_path : `str`, optional
-            Path to save the plot
-        - dpi : `int`, optional
-            Resolution for saved image
-        - show_indep_line : `bool`, optional
-            Whether to show dotted line for predictions under joint independence
+        Input Arguments
+        --------------
+        - `df` : DataFrame of prediction percentages (default=summary_df)
+        - `figsize` : Tuple of figure size (width, height) (optional)
+        - `show_values` : Whether to show percentage values (default=True)
+        - `show_indep_line` : Whether to show dotted line for predictions under joint independence (default=True)
+        - `cmap` : Colormap for heatmap (default='Blues')
+        - `save_path` : Path to save the plot (optional)
+        - `dpi` : Resolution for saved image (default=300) (optional)
+            
+        Outputs
+        -------
+        Tuple of Matplotlib figure and axes objects for the plot
         """
         # Get data dimensions
         n_rows, n_cols = df.shape
@@ -528,29 +542,93 @@ def bootstrap_predict_ccr_summary(
     # This will allow us to access the predictions in the same format as summary_df
     summary_df.predictions = np.transpose(pred_df)
     
-    # Attach the plotting method to the DataFrame
+    # Attach the plotting and saving methods to the DataFrame
     summary_df.plot_prediction_heatmap = plot_prediction_heatmap
     
     return summary_df
 
+def save_predictions(
+    df: pd.DataFrame,
+    save_path: Optional[str] = None,
+    format: str = 'csv',
+    include_percentages: bool = True,
+    include_predictions: bool = True,
+    decimal_places: int = 2
+) -> None:
+    """
+    Save prediction results generated by `bootstrap_predict_ccr_summary()` to a file.
+    
+    Input Arguments
+    --------------
+    - `df` : DataFrame containing prediction results generated by `bootstrap_predict_ccr_summary()`
+    - `save_path` : Path to save the output file
+    - `format` : Output format ('csv' or 'txt')
+    - `include_percentages` : Whether to include bootstrap percentages
+    - `include_predictions` : Whether to include predicted categories
+    - `decimal_places` : Number of decimal places for percentages
+    
+    Outputs
+    -------
+    None (saves file to disk)
+    
+    Warnings/Errors
+    --------------
+    - `ValueError` : If save_path is not specified
+    """
+    if save_path is None:
+        raise ValueError("save_path must be specified")
+        
+    # Create output directory if it doesn't exist
+    save_dir = os.path.dirname(save_path)
+    if save_dir and not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+        
+    # Unpack the DataFrame by transposing it
+    df = np.transpose(df)
+    
+    # Prepare data for output
+    output_data = {}
+    
+    # Add predictor combinations and their data
+    for col in df.columns:
+        # Store the column name as is
+        output_data[col] = {}
+        
+        if include_predictions and hasattr(df, 'predictions'):
+            output_data[col]['Predicted_Category'] = int(df.predictions.loc['Predicted', col])
+            
+        if include_percentages:
+            percentages = df[col].round(decimal_places)
+            for idx, pct in percentages.items():
+                # Use the index name directly
+                output_data[col][idx] = pct
+    
+    # Save based on format
+    if format.lower() == 'csv':
+        pd.DataFrame(output_data).T.to_csv(save_path)
+    elif format.lower() == 'txt':
+        with open(save_path, 'w') as f:
+            for combo, data in output_data.items():
+                f.write(f"Predictor Combination: {combo}\n")
+                for key, value in data.items():
+                    f.write(f"  {key}: {value}\n")
+                f.write("\n")
+    else:
+        raise ValueError("Unsupported format. Use 'csv' or 'txt'")
+
 @dataclass 
 class CustomPermutationResult:
-    """Container for permutation test results with visualization capabilities.
+    """
+    Container for permutation test results with statistical visualization capabilities.
     
-    Parameters
-    ----------
-    - metric_name : `str`
-        Name of the metric being tested
-    - observed_value : `float`
-        Original observed value
-    - p_value : `float`
-        Permutation test p-value
-    - null_distribution : `np.ndarray`
-        Array of values under null hypothesis
-    - permutation_tables : `np.ndarray`, optional
-        Array of permuted contingency tables
-    - histogram_fig : `plt.Figure`, optional
-        Matplotlib figure of distribution plot
+    Input Arguments
+    --------------
+    - `metric_name` : Name of the statistical metric being tested   
+    - `observed_value` : Original observed value of the metric
+    - `p_value` : Permutation test p-value
+    - `null_distribution` : Array of values under null hypothesis
+    - `permutation_tables` : Array of permuted contingency tables (optional)
+    - `histogram_fig` : Matplotlib figure of distribution plot (optional)
     """
     metric_name: str
     observed_value: float
@@ -559,8 +637,21 @@ class CustomPermutationResult:
     permutation_tables: np.ndarray = None
     histogram_fig: plt.Figure = None
 
-    def plot_distribution(self, title=None):
-        """Plot null distribution with observed value."""
+    def plot_distribution(
+        self,
+        title: Optional[str] = None
+    ) -> Optional[plt.Figure]:
+        """
+        Plot null distribution with observed value.
+        
+        Input Arguments
+        --------------
+        - `title` : Title of the plot (optional)
+
+        Outputs
+        -------
+        Matplotlib figure of distribution plot
+        """
         try:
             fig, ax = plt.subplots(figsize=(10, 6))
             data_range = np.ptp(self.null_distribution)
@@ -579,39 +670,37 @@ class CustomPermutationResult:
             print(f"Warning: Could not create plot: {str(e)}")
             return None
 
-def permutation_test_ccram(contingency_table: np.ndarray,
-                          predictors: Union[List[int], int],
-                          response: int,
-                          scaled: bool = False,
-                          alternative: str = 'greater',
-                          n_resamples: int = 9999,
-                          random_state = None,
-                          store_tables: bool = False) -> CustomPermutationResult:
-    """Perform permutation test for (S)CCRAM measure.
+def permutation_test_ccram(
+    contingency_table: np.ndarray,
+    predictors: Union[List[int], int],
+    response: int,
+    scaled: bool = False,
+    alternative: str = 'greater',
+    n_resamples: int = 9999,
+    random_state: Optional[int] = None,
+    store_tables: bool = False
+) -> CustomPermutationResult:
+    """
+    Perform permutation test for (S)CCRAM measure.
     
-    Parameters
-    ----------
-    - contingency_table : `np.ndarray`
-        Input contingency table
-    - predictors : `Union[List[int], int]`
-        List of 1-indexed predictors axes for category prediction
-    - response : `int`
-        1-indexed target response axis for category prediction
-    - scaled : `bool`, default=False
-        Whether to use scaled CCRAM (SCCRAM)
-    - alternative : `str`, default='greater'
-        Alternative hypothesis ('greater', 'less', 'two-sided')
-    - n_resamples : `int`, default=9999
-        Number of permutations
-    - random_state : `int`, optional
-        Random state for reproducibility
-    - store_tables : `bool`, default=False
-        Whether to store the permuted contingency tables
+    Input Arguments
+    --------------
+    - `contingency_table` : Input contingency table of frequency counts
+    - `predictors` : List of 1-indexed predictors axes for category prediction
+    - `response` : 1-indexed target response axis for category prediction
+    - `scaled` : Whether to use scaled CCRAM (SCCRAM) (default=False)
+    - `alternative` : Alternative hypothesis ('greater', 'less', 'two-sided') (default='greater')
+    - `n_resamples` : Number of permutations (default=9999)
+    - `random_state` : Random state for reproducibility (optional)
+    - `store_tables` : Whether to store the permuted contingency tables (default=False)
         
-    Returns
+    Outputs
     -------
-    `CustomPermutationResult`
-        Test results including p-value, null distribution and tables
+    Test results including p-value, null distribution and tables
+        
+    Warnings/Errors
+    --------------
+    - `ValueError` : If predictor or response axis is out of bounds
     """
     if not isinstance(predictors, (list, tuple)):
         predictors = [predictors]

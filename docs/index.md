@@ -8,6 +8,19 @@
 [![Coverage Status](https://coveralls.io/repos/github/DhyeyMavani2003/ccrvam/badge.svg?branch=main)](https://coveralls.io/github/DhyeyMavani2003/ccrvam?branch=main)
 [![Built with PyPi Template](https://img.shields.io/badge/PyPi_Template-v0.7.0-blue.svg)](https://github.com/christophevg/pypi-template)
 
+## Overview
+
+CCRVAM is a Python package for analyzing associations between categorical variables using Checkerboard Copula Regression. It provides tools for:
+
+- Construction of CCRVAM objects from contingency tables and/or list of cases
+- Calculation of marginal distributions and CDFs
+- Computation of Checkerboard Copula Regression (CCR) and Prediction based on CCR
+- Implementation of Checkerboard Copula Regression Association Measure (CCRAM) and the Scaled CCRAM (SCCRAM)
+- Bootstrap functionality for CCR-based prediction, CCRAM and SCCRAM
+- Permutation testing functionality for CCRAM & SCCRAM
+- Vectorized implementations for improved performance
+- Rigorous Edge-case Handling & Unit Testing with Pytest 
+
 ## Authors
 
 - Dhyey Mavani
@@ -51,7 +64,7 @@ $ pip install ccrvam
 $ deactivate
 ```
 
-## Documentation
+## Documentation Structure
 
 Visit [Read the Docs](https://ccrvam.readthedocs.org) for the full documentation, including overviews and several examples.
 
@@ -59,25 +72,64 @@ Visit [Read the Docs](https://ccrvam.readthedocs.org) for the full documentation
 
 For detailed examples in Jupyter Notebooks and beyond (organized by functionality) please refer to our [GitHub repository's examples folder](https://github.com/DhyeyMavani2003/ccrvam/tree/master/examples).
 
-## Features
+## Citation Guide
 
-- Construction of CCRVAM objects from contingency tables and/or list of cases
-- Calculation of marginal distributions and CDFs
-- Computation of Checkerboard Copula Regression (CCR) and Prediction based on CCR
-- Implementation of Checkerboard Copula Regression Association Measure (CCRAM) and the Scaled CCRAM (SCCRAM)
-- Bootstrap functionality for CCR-based prediction, CCRAM and SCCRAM
-- Permutation testing functionality for CCRAM & SCCRAM
-- Vectorized implementations for improved performance
-- Rigorous Edge-case Handling & Unit Testing with Pytest 
+When using this package in your research, please follow these citation guidelines:
 
-## Citation
+### Software Citation
+For citing the software package itself, use:
 
-If you use this package in your research, please cite the following papers:
+```bibtex
+@software{ccrvam2024,
+  author = {Mavani, Dhyey and Kim, Daeyoung and Liao, Shu-Min},
+  title = {ccrvam: Checkerboard Copula Regression-based Visualization and Association Measure},
+  year = {2024},
+  publisher = {GitHub},
+  url = {https://github.com/DhyeyMavani2003/ccrvam}
+}
+```
 
+### Method Citations
+For citing the underlying methodology, please cite both papers:
+
+```bibtex
+@article{wei2021exploratory,
+  title={On exploratory analytic method for multi-way contingency tables with an ordinal response variable and categorical explanatory variables},
+  author={Wei, Zheng and Kim, Daeyoung},
+  journal={Journal of Multivariate Analysis},
+  volume={186},
+  pages={104793},
+  year={2021},
+  publisher={Elsevier},
+  doi={10.1016/j.jmva.2021.104793}
+}
+
+@incollection{liao2024visualization,
+  title={Visualization of Dependence in Multidimensional Contingency Tables with an Ordinal Dependent Variable via Copula Regression},
+  author={Liao, Shu-Min and Wang, Li and Kim, Daeyoung},
+  booktitle={Dependent Data in Social Sciences Research: Forms, Issues, and Methods of Analysis},
+  edition={Second},
+  editor={Stemmler, Mark and Wiedermann, Wolfgang and Huang, Francis L.},
+  publisher={Springer New York LLC},
+  pages={517--538},
+  year={2024}
+}
+```
+
+### Citation in Text
+When referring to the methodology in your text, you can use:
+
+- For the original methodology: "Wei and Kim (2021) proposed the Checkerboard Copula Regression..."
+- For the visualization extension: "Liao et al. (2024) extended the methodology to include visualization capabilities..."
+
+```text
 1. Zheng Wei and Daeyoung Kim (2021). On exploratory analytic method for multi-way contingency tables with an ordinal response variable and categorical explanatory variables. *Journal of Multivariate Analysis*, 186, 104793. https://doi.org/10.1016/j.jmva.2021.104793
 
 2. Shu-Min Liao, Li Wang, Daeyoung Kim (2024). Visualization of Dependence in Multidimensional Contingency Tables with an Ordinal Dependent Variable via Copula Regression. In *Dependent Data in Social Sciences Research: Forms, Issues, and Methods of Analysis*, Second edition, Mark Stemmler, Wolfgang Wiedermann, and Francis L. Huang, eds. Springer New York LLC, pp. 517-538
+```
 
+### Version Information
+When citing specific versions of the software, please include the version number and DOI (if available) in your citation.
 
 ## Contents
 

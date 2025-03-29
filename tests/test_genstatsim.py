@@ -4,8 +4,14 @@ import pytest
 from ccrvam import (
     bootstrap_ccram, 
     permutation_test_ccram, 
+    save_predictions,
     bootstrap_predict_ccr_summary, 
 )
+from ccrvam.checkerboard.genstatsim import (
+    CustomBootstrapResult,
+    CustomPermutationResult,
+)
+import matplotlib.pyplot as plt
 
 @pytest.fixture
 def contingency_table():
@@ -287,3 +293,276 @@ def test_reproducibility_multi(table_4d):
         result1.bootstrap_distribution,
         result2.bootstrap_distribution
     )
+
+def test_custom_bootstrap_result_plotting():
+    """Test plotting functionality of CustomBootstrapResult."""
+    # Create a sample bootstrap result
+    result = CustomBootstrapResult(
+        metric_name="Test Metric",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=np.random.normal(0.5, 0.1, 1000),
+        standard_error=0.1
+    )
+    
+    # Test plotting with title
+    fig = result.plot_distribution(title="Test Plot")
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    
+    # Test plotting with degenerate distribution
+    result_degen = CustomBootstrapResult(
+        metric_name="Degenerate Metric",
+        observed_value=0.5,
+        confidence_interval=(0.5, 0.5),
+        bootstrap_distribution=np.array([0.5] * 1000),
+        standard_error=0.0
+    )
+    fig_degen = result_degen.plot_distribution()
+    assert fig_degen is not None
+    assert isinstance(fig_degen, plt.Figure)
+
+def test_custom_permutation_result_plotting():
+    """Test plotting functionality of CustomPermutationResult."""
+    # Create a sample permutation result
+    result = CustomPermutationResult(
+        metric_name="Test Metric",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.random.normal(0.3, 0.1, 1000)
+    )
+    
+    # Test plotting with title
+    fig = result.plot_distribution(title="Test Plot")
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    
+    # Test plotting with degenerate distribution
+    result_degen = CustomPermutationResult(
+        metric_name="Degenerate Metric",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.array([0.5] * 1000)
+    )
+    fig_degen = result_degen.plot_distribution()
+    assert fig_degen is not None
+    assert isinstance(fig_degen, plt.Figure)
+
+def test_bootstrap_ccram_scaled(table_4d):
+    """Test bootstrap_ccram with scaled option."""
+    result = bootstrap_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        scaled=True,
+        n_resamples=999,
+        random_state=8990
+    )
+    
+    assert "SCCRAM" in result.metric_name
+    assert hasattr(result, "confidence_interval")
+    assert result.confidence_interval[0] < result.confidence_interval[1]
+    
+    # Compare with unscaled version
+    result_unscaled = bootstrap_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        scaled=False,
+        n_resamples=999,
+        random_state=8990
+    )
+    
+    assert "CCRAM" in result_unscaled.metric_name
+    assert result.observed_value != result_unscaled.observed_value
+
+def test_permutation_test_alternatives(table_4d):
+    """Test permutation test with different alternative hypotheses."""
+    # Test 'greater' alternative
+    result_greater = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='greater',
+        n_resamples=999,
+        random_state=8990
+    )
+    assert result_greater.p_value >= 0
+    assert result_greater.p_value <= 1
+    
+    # Test 'less' alternative
+    result_less = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='less',
+        n_resamples=999,
+        random_state=8990
+    )
+    assert result_less.p_value >= 0
+    assert result_less.p_value <= 1
+    
+    # Test 'two-sided' alternative
+    result_two_sided = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='two-sided',
+        n_resamples=999,
+        random_state=8990
+    )
+    assert result_two_sided.p_value >= 0
+    assert result_two_sided.p_value <= 1
+
+def test_save_predictions(table_4d, tmp_path):
+    """Test saving prediction results to different formats."""
+    # Generate prediction summary
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["X1", "X2"],
+        response=4,
+        n_resamples=999,
+        random_state=8990
+    )
+    
+    # Test saving to CSV
+    csv_path = tmp_path / "predictions.csv"
+    save_predictions(summary_df, save_path=str(csv_path), format='csv')
+    assert csv_path.exists()
+    
+    # Test saving to TXT
+    txt_path = tmp_path / "predictions.txt"
+    save_predictions(summary_df, save_path=str(txt_path), format='txt')
+    assert txt_path.exists()
+    
+    # Test with different options
+    csv_path_no_pct = tmp_path / "predictions_no_pct.csv"
+    save_predictions(summary_df, save_path=str(csv_path_no_pct), format='csv', 
+                    include_percentages=False, include_predictions=True)
+    assert csv_path_no_pct.exists()
+    
+    # Test invalid format
+    with pytest.raises(ValueError):
+        save_predictions(summary_df, save_path=str(tmp_path / "invalid.xyz"), format='xyz')
+
+def test_bootstrap_ccram_store_tables(table_4d):
+    """Test bootstrap_ccram with store_tables option."""
+    result = bootstrap_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=999,
+        random_state=8990,
+        store_tables=True
+    )
+    
+    assert result.bootstrap_tables is not None
+    assert result.bootstrap_tables.shape == (999,) + table_4d.shape
+    assert np.all(result.bootstrap_tables >= 0)
+
+def test_permutation_test_store_tables(table_4d):
+    """Test permutation_test_ccram with store_tables option."""
+    result = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=999,
+        random_state=8990,
+        store_tables=True
+    )
+    
+    assert result.permutation_tables is not None
+    assert result.permutation_tables.shape == (999,) + table_4d.shape
+    assert np.all(result.permutation_tables >= 0)
+
+def test_bootstrap_predict_ccr_summary_edge_cases(table_4d):
+    """Test bootstrap_predict_ccr_summary with edge cases."""
+    # Test with single predictor
+    result_single = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=1,
+        response=4,
+        n_resamples=999,
+        random_state=8990
+    )
+    assert isinstance(result_single, pd.DataFrame)
+    
+    # Test with all predictors
+    result_all = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2, 3],
+        response=4,
+        n_resamples=999,
+        random_state=8990
+    )
+    assert isinstance(result_all, pd.DataFrame)
+    
+    # Test with custom names
+    result_custom = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["Var1", "Var2"],
+        response=4,
+        response_name="Target",
+        n_resamples=999,
+        random_state=8990
+    )
+    assert isinstance(result_custom, pd.DataFrame)
+    assert "Target" in result_custom.columns[0]
+    assert "Var1" in result_custom.index[0]
+
+def test_bootstrap_predict_ccr_summary_plotting(table_4d):
+    """Test plotting functionality of bootstrap_predict_ccr_summary."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["X1", "X2"],
+        response=4,
+        n_resamples=999,
+        random_state=8990
+    )
+    
+    # Test basic plotting
+    fig, ax = summary_df.plot_prediction_heatmap()
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(ax, plt.Axes)
+    
+    # Test plotting with different options
+    fig, ax = summary_df.plot_prediction_heatmap(
+        show_values=False,
+        show_indep_line=False,
+        cmap='Reds',
+        figsize=(12, 8)
+    )
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(ax, plt.Axes)
+
+def test_invalid_inputs_permutation_test():
+    """Test invalid inputs for permutation test."""
+    valid_table = np.array([[10, 0], [0, 10]])
+    
+    # Test invalid alternative hypothesis
+    with pytest.raises(ValueError):
+        permutation_test_ccram(
+            valid_table,
+            predictors=[1],
+            response=2,
+            alternative='invalid'
+        )
+    
+    # Test invalid axes
+    with pytest.raises(ValueError):
+        permutation_test_ccram(
+            valid_table,
+            predictors=[3],
+            response=1
+        )
+    
+    # Test duplicate axes
+    with pytest.raises(IndexError):
+        permutation_test_ccram(
+            valid_table,
+            predictors=[1, 1],
+            response=2
+        )

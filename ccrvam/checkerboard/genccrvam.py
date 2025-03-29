@@ -1,36 +1,32 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from typing import Union
 import os
 from .utils import gen_case_form_to_contingency
 
 class GenericCCRVAM:
-    """Central Generic Checkerboard Copula Regression and Visualization of Association Measure class object."""
+    """Central Generic Checkerboard Copula Regression and Visualization of Association Measure (CCRVAM) class object."""
     @classmethod
-    def from_contingency_table(cls, contingency_table):
+    def from_contingency_table(
+        cls: 'GenericCCRVAM',
+        contingency_table: np.ndarray
+    ) -> 'GenericCCRVAM':
         """
-        Create a CCRVAM object instance from a contingency table.
+        Create a CCRVAM object instance from a N-dimensional contingency table.
 
-        Parameters
-        ----------
-        - contingency_table : `np.ndarray`
-            A 2D contingency table of counts/frequencies.
+        Input Arguments
+        --------------
+        - `contingency_table` : A contingency table of frequency counts (N-dimensional numpy array)
 
-        Returns
+        Outputs
         -------
-        `GenericCCRVAM` :
-            A new instance initialized with the probability matrix.
+        A new GenericCCRVAM object instance initialized with the probability matrix, which will allow for further statistical analysis of the data.
 
-        Raises
-        ------
-        `ValueError` :
-            - If the input table contains negative values or all zeros.
-            - If the input table is not 2-dimensional.
-
-        """
-        if not isinstance(contingency_table, np.ndarray):
-            contingency_table = np.array(contingency_table)
-            
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the input table contains negative values or all zeros
+        """ 
         if np.any(contingency_table < 0):
             raise ValueError("Contingency table cannot contain negative values")
             
@@ -42,32 +38,27 @@ class GenericCCRVAM:
         return cls(P)
     
     @classmethod
-    def from_cases(cls, cases, shape):
+    def from_cases(
+        cls: 'GenericCCRVAM',
+        cases: np.ndarray,
+        shape: tuple
+    ) -> 'GenericCCRVAM':
         """
         Create a CCRVAM object instance from a list of cases.
 
-        Parameters
-        ----------
-        - cases : `np.ndarray`
-            A 2D array where each row represents a case.
-        - shape : `tuple`
-            Shape of the contingency table to create.
+        Input Arguments
+        --------------
+        - `cases` : A 2D array where each row represents a case array of observed values for each categorical variable.
+        - `shape` : Shape of the contingency table to create
 
-        Returns
+        Outputs
         -------
-        `GenericCCRVAM` :
-            A new instance initialized with the probability matrix.
+        A new GenericCCRVAM object instance initialized with the probability matrix, which will allow for further statistical analysis of the data.
 
-        Raises
-        ------
-        `ValueError` :
-            - If the input cases are not 2-dimensional.
-            - If the shape tuple does not match the number of variables.
-
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the input cases are not 2-dimensional or the shape tuple does not match the number of variables
         """
-        if not isinstance(cases, np.ndarray):
-            cases = np.array(cases)
-            
         if cases.ndim != 2:
             raise ValueError("Cases must be a 2D array")
             
@@ -80,11 +71,11 @@ class GenericCCRVAM:
         contingency_table = gen_case_form_to_contingency(cases, shape)
         return cls.from_contingency_table(contingency_table)
     
-    def __init__(self, P):
-        """Initialize with joint probability matrix P."""
-        if not isinstance(P, np.ndarray):
-            P = np.array(P)
-            
+    def __init__(
+        self,
+        P: np.ndarray
+    ):
+        """Initialization with joint probability matrix P for statistical analysis."""
         if np.any(P < 0) or np.any(P > 1):
             raise ValueError("P must contain values in [0,1]")
             
@@ -116,19 +107,19 @@ class GenericCCRVAM:
         self.conditional_pmfs = {}
         
     @property
-    def contingency_table(self):
-        """Get the contingency table by rescaling the probability matrix.
+    def contingency_table(self) -> np.ndarray:
+        """
+        Get the contingency table by rescaling the probability matrix.
         
-        This property converts the internal probability matrix (P) back to an 
-        approximate contingency table of counts. Since the exact original counts
+        This property converts the internal joint probability matrix (P) back to an 
+        approximate N-dimensional contingency table of frequency counts. Since the exact original counts
         cannot be recovered, it scales the probabilities by finding the smallest 
         non-zero probability and using its reciprocal as a multiplier.
         
-        Returns
+        Outputs
         -------
-        `np.ndarray` :
-            A matrix of integer counts representing the contingency table.
-            The values are rounded to the nearest integer after scaling.
+        A matrix of integer frequency counts representing the N-dimensional contingency table. 
+        The values are rounded to the nearest integer after scaling.
         
         Notes
         -----
@@ -138,7 +129,7 @@ class GenericCCRVAM:
         3. Multiplying all probabilities by this scale
         4. Rounding to nearest integers
         
-        Warning
+        Warnings/Errors
         -------
         This is an approximation of the original contingency table since the
         exact counts cannot be recovered from probabilities alone.
@@ -147,24 +138,31 @@ class GenericCCRVAM:
         scale = 1 / np.min(self.P[self.P > 0]) if np.any(self.P > 0) else 1
         return np.round(self.P * scale).astype(int)
         
-    def calculate_CCRAM(self, predictors, response, scaled=False):
-        """Calculate CCRAM with multiple conditioning axes.
-        
-        Parameters
-        ----------
-        - predictors : `List`
-            List of 1-indexed predictors axes for directional association
-        - response : `int`
-            1-indexed target response axis for directional association
-        - scaled : `bool`, optional
-            Whether to return standardized measure (default: False)
-            
-        Returns
-        -------
-        `float` :
-            CCRAM value for the given predictors and response
+    def calculate_CCRAM(
+        self,
+        predictors: Union[int, list],
+        response: int,
+        scaled: bool = False
+    ) -> float:
         """
-        if not isinstance(predictors, (list, tuple)):
+        Calculate CCRAM with multiple conditioning axes.
+        
+        Input Arguments
+        --------------
+        - `predictors` : List of 1-indexed predictors axes for directional association
+        - `response` : 1-indexed target response axis for directional association
+        - `scaled` : Whether to return standardized statistical measure (default: False)
+            
+        Outputs
+        -------
+        (Standardized) CCRAM value for the given predictors and response
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
+        """
+        if not isinstance(predictors, list):
             predictors = [predictors]
             
         # Input validation
@@ -211,28 +209,30 @@ class GenericCCRVAM:
         self,
         predictors: list,
         response: int,
-        variable_names: dict = None
+        variable_names: Union[dict, None] = None
     ) -> pd.DataFrame:
-        """Get category predictions with multiple conditioning axes.
+        """
+        Get category predictions with multiple conditioning axes.
         
-        Parameters
-        ----------
-        - predictors : `List`
-            List of 1-indexed predictors axes for category prediction
-        - response : `int`
-            1-indexed target response axis for category prediction
-        - variable_names : `dict`, optional
-            Dictionary mapping 1-indexed variable indices to names (default: None)
+        Input Arguments
+        --------------
+        - `predictors` : List of 1-indexed predictors axes for category prediction
+        - `response` : 1-indexed target response axis for category prediction
+        - `variable_names` : Dictionary mapping 1-indexed variable indices to names (default: None)
             
-        Returns
+        Outputs
         -------
-        `pd.DataFrame` :
-            DataFrame containing source and predicted categories
+        DataFrame containing source and predicted categories
         
         Notes
         -----
         The DataFrame contains columns for each source axis category and the 
         predicted target axis category. The categories are 1-indexed.
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
         """
         # Flag to hide response default name if variable_names is not provided
         hide_response_name_flag = False
@@ -273,29 +273,34 @@ class GenericCCRVAM:
         
         return result
     
-    def get_prediction_under_indep(self, response):
-        """Calculate the predicted category under joint independence.
+    def get_prediction_under_indep(
+        self,
+        response: int
+    ) -> int:
+        """
+        Calculate the predicted category under joint independence.
         
         According to Proposition 2.1(c) from the visualization paper, the CCR value
         equals 0.5 under the assumption of joint independence between the 
         response variable and all predictor variables.
         
-        Parameters
-        ----------
-        - response : `int`
-            1-indexed target response axis
+        Input Arguments
+        --------------
+        - `response` : 1-indexed target response axis
             
-        Returns
+        Outputs
         -------
-        `int` :
-            The predicted category (1-indexed) for the response variable 
-            under joint independence
+        The predicted category (1-indexed) for the response variable under joint independence
         
         Notes
         -----
         This prediction serves as an important reference point when interpreting
         CCR prediction results, as it represents what would be predicted if there
         were no association between the predictors and the response.
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the response axis is out of bounds for the array dimension
         """
         parsed_response = response - 1
         
@@ -314,66 +319,85 @@ class GenericCCRVAM:
         # Return 1-indexed category
         return predicted_cat + 1
     
-    def calculate_ccs(self, var_index):
-        """Calculate checkerboard scores for the specified variable index.
+    def calculate_ccs(
+        self,
+        var_index: int
+    ) -> np.ndarray:
+        """
+        Calculate checkerboard scores for the specified variable index.
         
-        Parameters
-        ----------
-        - var_index : `int`
-            1-Indexed axis of the variable for which to calculate scores
+        Input Arguments
+        --------------
+        - `var_index` : 1-Indexed axis of the variable for which to calculate scores
             
-        Returns
+        Outputs
         -------
-        `np.ndarray` :
-            Array containing checkerboard scores for the given axis
+        Array containing checkerboard scores for the given axis
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the axis is out of bounds for the array dimension
         """
         parsed_axis = var_index - 1
         return self.scores[parsed_axis]
     
-    def calculate_variance_ccs(self, var_index):
-        """Calculate the variance of score S for the specified variable index.
+    def calculate_variance_ccs(
+        self,
+        var_index: int
+    ) -> float:
+        """
+        Calculate the variance of score S for the specified variable index.
         
-        Parameters
-        ----------
-        - var_index : `int`
+        Input Arguments
+        --------------
+        var_index : int
             1-Indexed axis of the variable for which to calculate variance
             
-        Returns
+        Outputs
         -------
-        `float` :
+        float
             Variance of score S for the given axis
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the axis is out of bounds for the array dimension
         """
         parsed_axis = var_index - 1
         return self._calculate_sigma_sq_S_vectorized(parsed_axis)
     
-    def plot_ccr_predictions(self, predictors, response, variable_names=None,
-                            legend_style='side', show_indep_line=True,
-                            figsize=None, save_path=None, dpi=300):
-        """Plot CCR predictions as a 2D visualization.
+    def plot_ccr_predictions(
+        self,
+        predictors: list,
+        response: int,
+        variable_names: Union[dict, None] = None,
+        legend_style: str = 'side',
+        show_indep_line: bool = True,
+        figsize: Union[tuple, None] = None,
+        save_path: Union[str, None] = None,
+        dpi: int = 300
+    ) -> None:
+        """
+        Plot CCR predictions as a visualization.
         
-        Parameters
-        ----------
-        - predictors : `List`
-            List of 1-indexed predictor axes
-        - response : `int`
-            1-indexed response axis
-        - variable_names : `dict`, optional
-            Dictionary mapping indices to variable names
-        - legend_style : `str`, optional
-            How to display predictor combinations: 'side' (default) or 'xaxis'
-        - show_indep_line : `bool`, optional
-            Whether to show the prediction under joint independence (default: True)
-        - figsize : `Tuple`, optional
-            Figure size (width, height)
-        - save_path : `str`, optional
-            Path to save the plot (e.g. 'plots/ccr_pred.pdf')
-        - dpi : `int`, optional
-            Resolution for saving raster images (png, jpg)
+        Input Arguments
+        --------------
+        - `predictors` : List of 1-indexed predictor axes
+        - `response` : 1-indexed response axis
+        - `variable_names` : Dictionary mapping indices to variable names (default: None)
+        - `legend_style` : How to display predictor combinations: 'side' (default) or 'xaxis'
+        - `show_indep_line` : Whether to show the prediction under joint independence (default: True)
+        - `figsize` : Figure size (width, height)
+        - `save_path` : Path to save the plot (e.g. 'plots/ccr_pred.pdf')
+        - `dpi` : Resolution for saving raster images (png, jpg)
         
-        Returns
+        Outputs
         -------
-        `None` : 
-            (Plot is displayed or saved to file as per user preferences and settings)
+        None (Plot is displayed or saved to file as per user preferences and settings)
+        
+        Warnings/Errors
+        --------------
+        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
         """
         
         # Flag to hide response default name if variable_names is not provided
@@ -532,7 +556,7 @@ class GenericCCRVAM:
                 legend_fig.savefig(legend_path, dpi=dpi, bbox_inches='tight')
     
     def _calculate_conditional_pmf(self, target_axis, given_axes):
-        """Helper Function: Calculate conditional PMF P(target|given)."""
+        """Helper function: Calculate conditional PMF P(target|given)."""
         if not isinstance(given_axes, (list, tuple)):
             given_axes = [given_axes]
                 
@@ -585,7 +609,7 @@ class GenericCCRVAM:
         return conditional_prob, old_to_new
 
     def _calculate_regression_batched(self, target_axis, given_axes, given_values):
-        """Vectorized regression calculation for multiple conditioning axes."""
+        """Helper function: Vectorized regression calculation for multiple conditioning axes."""
         if not isinstance(given_axes, (list, tuple)):
             given_axes = [given_axes]
             given_values = [given_values]
@@ -630,12 +654,12 @@ class GenericCCRVAM:
         return results
     
     def _calculate_scores(self, marginal_cdf):
-        """Helper Function: Calculate checkerboard scores from marginal CDF."""
+        """Helper function: Calculate checkerboard scores from marginal CDF."""
         return [(marginal_cdf[j-1] + marginal_cdf[j])/2 
                 for j in range(1, len(marginal_cdf))]
     
     def _lambda_function(self, u, ul, uj):
-        """Helper Function: Calculate lambda function for checkerboard ccrvam."""
+        """Helper function: Calculate lambda function for checkerboard ccrvam."""
         if u <= ul:
             return 0.0
         elif u >= uj:
@@ -644,15 +668,15 @@ class GenericCCRVAM:
             return (u - ul) / (uj - ul)
         
     def _get_predicted_category(self, regression_value, marginal_cdf):
-        """Helper Function: Get predicted category based on regression value."""
+        """Helper function: Get predicted category based on regression value."""
         return np.searchsorted(marginal_cdf[1:-1], regression_value, side='left')
 
     def _get_predicted_category_batched(self, regression_values, marginal_cdf):
-        """Helper Function: Get predicted categories for multiple regression values."""
+        """Helper function: Get predicted categories for multiple regression values."""
         return np.searchsorted(marginal_cdf[1:-1], regression_values, side='left')
     
     def _calculate_sigma_sq_S(self, axis):
-        """Helper Function: Calculate variance of score S for given axis."""
+        """Helper function: Calculate variance of score S for given axis."""
         # Get consecutive CDF values
         u_prev = self.marginal_cdfs[axis][:-1]
         u_next = self.marginal_cdfs[axis][1:]
@@ -669,7 +693,7 @@ class GenericCCRVAM:
         return sigma_sq_S
 
     def _calculate_sigma_sq_S_vectorized(self, axis):
-        """Helper Function: Calculate variance of score S using vectorized operations."""
+        """Helper function: Calculate variance of score S using vectorized operations."""
         # Get consecutive CDF values
         u_prev = self.marginal_cdfs[axis][:-1]
         u_next = self.marginal_cdfs[axis][1:]
@@ -682,7 +706,7 @@ class GenericCCRVAM:
         return sigma_sq_S
     
     def _predict_category(self, source_category, predictors, response):
-        """Helper Function: Predict category for target axis given source category."""
+        """Helper function: Predict category for target axis given source category."""
         if not isinstance(source_category, (list, tuple)):
             source_category = [source_category]
         if not isinstance(predictors, (list, tuple)):
@@ -712,7 +736,7 @@ class GenericCCRVAM:
         predictors, 
         response
     ):
-        """Helper Function: Vectorized prediction with multiple conditioning axes."""
+        """Helper function: Vectorized prediction with multiple conditioning axes."""
         if not isinstance(predictors, (list, tuple)):
             predictors = [predictors]
 

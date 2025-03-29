@@ -7,9 +7,10 @@ from ccrvam.checkerboard.genstatsim import (
         bootstrap_ccram,
         bootstrap_predict_ccr_summary,
         permutation_test_ccram,
+        save_predictions,
     )
 
-__version__ = "0.9.4"
+__version__ = "0.9.5"
 __all__ = [
   "GenericCCRVAM",
   "DataProcessor",
@@ -17,5 +18,6 @@ __all__ = [
   "gen_case_form_to_contingency",
   "bootstrap_ccram",
   "bootstrap_predict_ccr_summary",
+  "save_predictions",
   "permutation_test_ccram",
 ]
