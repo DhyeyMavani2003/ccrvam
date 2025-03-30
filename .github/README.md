@@ -88,10 +88,10 @@ When using this package in your research, please follow these citation guideline
 For citing the software package itself, use:
 
 ```bibtex
-@software{ccrvam2024,
+@software{ccrvam2025,
   author = {Mavani, Dhyey and Kim, Daeyoung and Liao, Shu-Min},
   title = {ccrvam: Checkerboard Copula Regression-based Visualization and Association Measure},
-  year = {2024},
+  year = {2025},
   publisher = {GitHub},
   url = {https://github.com/DhyeyMavani2003/ccrvam}
 }

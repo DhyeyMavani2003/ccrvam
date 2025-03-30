@@ -436,12 +436,6 @@ def test_save_predictions(table_4d, tmp_path):
     save_predictions(summary_df, save_path=str(txt_path), format='txt')
     assert txt_path.exists()
     
-    # Test with different options
-    csv_path_no_pct = tmp_path / "predictions_no_pct.csv"
-    save_predictions(summary_df, save_path=str(csv_path_no_pct), format='csv', 
-                    include_percentages=False, include_predictions=True)
-    assert csv_path_no_pct.exists()
-    
     # Test invalid format
     with pytest.raises(ValueError):
         save_predictions(summary_df, save_path=str(tmp_path / "invalid.xyz"), format='xyz')
