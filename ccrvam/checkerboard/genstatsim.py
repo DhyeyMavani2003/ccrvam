@@ -56,6 +56,12 @@ class CustomBootstrapResult:
         --------------
         - `Exception` : If the plot cannot be created
         """
+        # Check if bootstrap distribution data is available
+        if self.bootstrap_distribution is None:
+            print(f"Warning: Cannot plot distribution for {self.metric_name} as bootstrap_distribution data is missing.")
+            self.histogram_fig = None # Ensure fig attribute is None
+            return None
+            
         try:
             fig, ax = plt.subplots(figsize=(10, 6))
             
@@ -220,11 +226,16 @@ def bootstrap_ccram(
         vectorized=True
     )
     
+    # Check if bootstrap_distribution attribute exists (for compatibility with older scipy versions)
+    bootstrap_distribution_values = getattr(res, 'bootstrap_distribution', None)
+    if bootstrap_distribution_values is None:
+        print(f"Warning: Bootstrap distribution data not available from scipy.stats.bootstrap result for {metric_name}. Plotting will be disabled.")
+
     result = CustomBootstrapResult(
         metric_name=metric_name,
         observed_value=observed_ccram,
         confidence_interval=res.confidence_interval,
-        bootstrap_distribution=res.bootstrap_distribution,
+        bootstrap_distribution=bootstrap_distribution_values,
         standard_error=res.standard_error,
         bootstrap_tables=bootstrap_tables
     )
@@ -353,9 +364,6 @@ def bootstrap_predict_ccr_summary(
     
     # Create DataFrame
     summary_df = pd.DataFrame(percentages, index=rows, columns=columns)
-    
-    # Remove rows with all zeros
-    summary_df = summary_df.loc[(summary_df != 0).any(axis=1)]
     
     # Initialize CCRVAM model on original table
     ccrvam_orig = GenericCCRVAM.from_contingency_table(table)

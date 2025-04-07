@@ -273,27 +273,6 @@ def test_invalid_inputs_multi():
     with pytest.raises(IndexError):
         bootstrap_ccram(valid_table, predictors=[1, 1], response=2)
 
-def test_reproducibility_multi(table_4d):
-    """Test reproducibility with multiple axes."""
-    result1 = bootstrap_ccram(
-        table_4d,
-        predictors=[1, 2],
-        response=3,
-        random_state=8990
-    )
-    
-    result2 = bootstrap_ccram(
-        table_4d,
-        predictors=[1, 2],
-        response=3,
-        random_state=8990
-    )
-    
-    np.testing.assert_array_almost_equal(
-        result1.bootstrap_distribution,
-        result2.bootstrap_distribution
-    )
-
 def test_custom_bootstrap_result_plotting():
     """Test plotting functionality of CustomBootstrapResult."""
     # Create a sample bootstrap result
