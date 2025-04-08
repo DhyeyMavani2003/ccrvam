@@ -72,6 +72,59 @@ Visit [Read the Docs](https://ccrvam.readthedocs.org) for the full documentation
 
 For detailed examples in Jupyter Notebooks and beyond (organized by functionality) please refer to our [GitHub repository's examples folder](https://github.com/DhyeyMavani2003/ccrvam/tree/master/examples).
 
+### Project Structure
+
+```mermaid
+graph TD
+    A[ccrvam] --> B[checkerboard]
+    B --> B1[genccrvam.py<br/>GenericCCRVAM]
+    B --> B2[genstatsim.py<br/>Bootstrap/Permutation]
+    B --> B3[utils.py<br/>DataProcessor]
+
+
+    A --> F[docs/]
+    B1 --> F
+    B2 --> F
+    B3 --> F
+
+    A --> D[examples/]
+    A --> E[tests/]
+    E --> E1[test_genccrvam.py]
+    E --> E2[test_genstatsim.py]
+    E --> E3[test_utils.py]
+```
+
+### Workflow Overview
+
+```mermaid
+flowchart TD
+    A[Raw Data / File Input] --> B[DataProcessor.load_data]
+    B --> C[Contingency Table]
+
+    C --> D[GenericCCRVAM.from_contingency_table]
+    C --> E[GenericCCRVAM.from_cases]
+
+    D --> F[GenericCCRVAM Instance]
+    E --> F
+
+    F --> G[calculate_CCRAM]
+    F --> H[get_predictions_ccr]
+    F --> I[plot_ccr_predictions]
+    F --> J[calculate_ccs]
+    F --> K[get_prediction_under_indep]
+
+    C --> L[bootstrap_ccram]
+    C --> M[permutation_test_ccram]
+    C --> N[bootstrap_predict_ccr_summary]
+
+    L --> O[CustomBootstrapResult]
+    M --> P[CustomPermutationResult]
+    N --> Q[Predictions Summary]
+
+    Q --> R[plot_prediction_heatmap]
+    Q --> S[save_predictions]
+```
+
 ## Citation Guide
 
 When using this package in your research, please follow these citation guidelines:
