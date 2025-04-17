@@ -15,8 +15,24 @@ from .utils import gen_contingency_to_case_form, gen_case_form_to_contingency
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
-# Number of CPU cores to use for parallel processing
 N_CORES = max(1, multiprocessing.cpu_count() - 1)
+"""
+The number of CPU cores available for parallel processing. (autodetected)
+
+This constant determines how many CPU cores will be used for parallel computations
+in functions like bootstrap_predict_ccr_summary. It is automatically set to one less
+than the total number of available logical CPUs to ensure system responsiveness.
+
+Outputs
+-------
+- int : The number of CPU cores to use, calculated as max(1, cpu_count - 1)
+
+Notes
+-----
+- Uses multiprocessing.cpu_count() to detect available CPUs
+- Reserves one core for system processes by subtracting 1
+- Will never return less than 1, ensuring at least single-core operation
+"""
 
 @dataclass
 class CustomBootstrapResult:
