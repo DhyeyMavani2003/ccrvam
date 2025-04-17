@@ -7,11 +7,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
+import multiprocessing
 from .genccrvam import GenericCCRVAM
 from .utils import gen_contingency_to_case_form, gen_case_form_to_contingency
 
 # Suppress warnings
 warnings.filterwarnings("ignore")
+
+# Number of CPU cores to use for parallel processing
+N_CORES = max(1, multiprocessing.cpu_count() - 1)
 
 @dataclass
 class CustomBootstrapResult:
@@ -243,6 +248,34 @@ def bootstrap_ccram(
     result.plot_distribution(f'Bootstrap Distribution: {metric_name}')
     return result
 
+def _process_prediction_batch(args):
+    """Helper function for parallel prediction processing."""
+    batch_indices, cases, dims, all_axes, parsed_predictors, response, pred_combinations = args
+    
+    # batch_size = len(batch_indices)
+    result = np.zeros((dims[response], len(pred_combinations)))
+    
+    # Process each bootstrap sample in the batch
+    for indices in batch_indices:
+        bootstrap_cases = cases[indices]
+        bootstrap_table = gen_case_form_to_contingency(bootstrap_cases, shape=dims, axis_order=all_axes)
+        ccrvam = GenericCCRVAM.from_contingency_table(bootstrap_table)
+        
+        # For each predictor combination, get the predicted category
+        for i, combo in enumerate(pred_combinations):
+            source_cats = [c-1 for c in combo]
+            try:
+                predicted = ccrvam._predict_category(
+                    source_category=source_cats,
+                    predictors=parsed_predictors,
+                    response=response
+                )
+                result[predicted, i] += 1
+            except Exception:
+                continue
+    
+    return result
+
 def bootstrap_predict_ccr_summary(
     table: np.ndarray,
     predictors: Union[List[int], int],
@@ -250,7 +283,8 @@ def bootstrap_predict_ccr_summary(
     response: Optional[int] = None,
     response_name: Optional[str] = None,
     n_resamples: int = 9999,
-    random_state: Optional[int] = None
+    random_state: Optional[int] = None,
+    parallel: bool = True
 ) -> pd.DataFrame:
     """
     Compute bootstrap prediction matrix with percentages for CCR.
@@ -264,6 +298,7 @@ def bootstrap_predict_ccr_summary(
     - `response_name` : Name of response variable (optional)
     - `n_resamples` : Number of bootstrap resamples (default=9999)
     - `random_state` : Random state for reproducibility (optional)
+    - `parallel` : Whether to use parallel processing (default=True)
         
     Outputs
     -------
@@ -306,6 +341,9 @@ def bootstrap_predict_ccr_summary(
     pred_dims = [dims[p] for p in parsed_predictors]
     response_dim = dims[response]
     
+    # Get all required axes in sorted order
+    all_axes = sorted(parsed_predictors + [response])
+    
     # Convert table to case form for resampling
     cases = gen_contingency_to_case_form(table)
     
@@ -313,10 +351,8 @@ def bootstrap_predict_ccr_summary(
     pred_combinations = list(itertools.product(*[range(1, dim+1) for dim in pred_dims]))
     
     # Create column headers
-    columns = []
-    for combo in pred_combinations:
-        header = " ".join([f"{name}={val}" for name, val in zip(predictors_names, combo)])
-        columns.append(header)
+    columns = [" ".join([f"{name}={val}" for name, val in zip(predictors_names, combo)]) 
+              for combo in pred_combinations]
     
     # Create row labels (1-indexed for output)
     rows = [f"{response_name}={i+1}" for i in range(response_dim)]
@@ -324,43 +360,42 @@ def bootstrap_predict_ccr_summary(
     # Initialize result matrix with zeros
     result = np.zeros((response_dim, len(pred_combinations)))
     
-    # For each bootstrap sample
-    for _ in range(n_resamples):
-        # Generate bootstrap sample
-        bootstrap_indices = np.random.choice(len(cases), len(cases), replace=True)
-        bootstrap_cases = cases[bootstrap_indices]
-        
-        # Generate contingency table from bootstrap cases
-        bootstrap_table = gen_case_form_to_contingency(bootstrap_cases, shape=dims)
-        
-        # Create CCRVAM model for this bootstrap sample
-        ccrvam = GenericCCRVAM.from_contingency_table(bootstrap_table)
-        
-        # For each predictor combination, get the predicted category
-        for i, combo in enumerate(pred_combinations):
-            # Convert to 0-indexed for internal processing
-            source_cats = [c-1 for c in combo]
-            
-            # Predict category (returns 0-indexed result)
-            try:
-                predicted = ccrvam._predict_category(
-                    source_category=source_cats,
-                    predictors=parsed_predictors,
-                    response=response
-                )
-                
-                # Increment count for this prediction
-                result[predicted, i] += 1
-            except Exception:
-                # Skip if prediction fails (e.g., due to zero probabilities)
-                continue
+    # Generate all bootstrap samples at once
+    rng = np.random.RandomState(random_state)
+    all_bootstrap_indices = [
+        rng.choice(len(cases), size=len(cases), replace=True)
+        for _ in range(n_resamples)
+    ]
     
-    # Convert counts to percentages
+    if parallel:
+        # Determine number of cores to use
+        n_jobs = max(1, multiprocessing.cpu_count() - 1)
+        print(f"Using {n_jobs} cores for parallel processing")
+        batch_size = max(1, n_resamples // n_jobs)
+        
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            # Prepare batches for parallel processing
+            batches = []
+            for i in range(0, n_resamples, batch_size):
+                end_idx = min(i + batch_size, n_resamples)
+                batch_indices = all_bootstrap_indices[i:end_idx]
+                batches.append((batch_indices, cases, dims, all_axes, parsed_predictors, response, pred_combinations))
+            
+            # Process batches in parallel
+            futures = [executor.submit(_process_prediction_batch, batch) for batch in batches]
+            for future in as_completed(futures):
+                result += future.result()
+    else:
+        # Process all samples sequentially
+        batch = (all_bootstrap_indices, cases, dims, all_axes, parsed_predictors, response, pred_combinations)
+        result = _process_prediction_batch(batch)
+    
+    # Convert counts to percentages using vectorized operations
     col_sums = result.sum(axis=0)
     with np.errstate(divide='ignore', invalid='ignore'):
         percentages = np.where(col_sums > 0, 
-                              (result / col_sums[:, np.newaxis].T) * 100, 
-                              0)
+                             (result / col_sums[:, np.newaxis].T) * 100, 
+                             0)
     
     # Create DataFrame
     summary_df = pd.DataFrame(percentages, index=rows, columns=columns)

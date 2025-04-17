@@ -539,3 +539,101 @@ def test_invalid_inputs_permutation_test():
             predictors=[1, 1],
             response=2
         )
+
+def test_bootstrap_predict_ccr_summary_parallel_options(table_4d):
+    """Test bootstrap_predict_ccr_summary with different parallel processing options."""
+    # Test with parallel processing enabled (default)
+    result_parallel = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["X1", "X2"],
+        response=4,
+        n_resamples=999,
+        random_state=8990,
+        parallel=True
+    )
+    assert isinstance(result_parallel, pd.DataFrame)
+    assert np.all(result_parallel >= 0)
+    assert np.all(result_parallel <= 100)
+    
+    # Test with parallel processing disabled
+    result_sequential = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["X1", "X2"],
+        response=4,
+        n_resamples=999,
+        random_state=8990,
+        parallel=False
+    )
+    assert isinstance(result_sequential, pd.DataFrame)
+    assert np.all(result_sequential >= 0)
+    assert np.all(result_sequential <= 100)
+    
+    # Verify that both methods produce similar results
+    # Note: Results won't be exactly identical due to random sampling,
+    # but they should be reasonably close
+    pd.testing.assert_frame_equal(
+        result_parallel.round(1), 
+        result_sequential.round(1),
+        check_exact=False,
+        rtol=0.1  # Allow for 10% relative tolerance
+    )
+    
+    # Test that predictions attribute is present and consistent
+    assert hasattr(result_parallel, 'predictions')
+    assert hasattr(result_sequential, 'predictions')
+    pd.testing.assert_frame_equal(
+        result_parallel.predictions,
+        result_sequential.predictions
+    )
+
+def test_bootstrap_predict_ccr_summary_parallel_edge_cases(table_4d):
+    """Test bootstrap_predict_ccr_summary parallel processing with edge cases."""
+    # Test with very small number of resamples
+    result_small = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=10,
+        random_state=8990,
+        parallel=True
+    )
+    assert isinstance(result_small, pd.DataFrame)
+    
+    # Test with single predictor
+    result_single_pred = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=1,
+        response=4,
+        n_resamples=100,
+        random_state=8990,
+        parallel=True
+    )
+    assert isinstance(result_single_pred, pd.DataFrame)
+    
+    # Test with all predictors in parallel and sequential modes
+    result_all_parallel = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2, 3],
+        response=4,
+        n_resamples=100,
+        random_state=8990,
+        parallel=True
+    )
+    result_all_sequential = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2, 3],
+        response=4,
+        n_resamples=100,
+        random_state=8990,
+        parallel=False
+    )
+    assert isinstance(result_all_parallel, pd.DataFrame)
+    assert isinstance(result_all_sequential, pd.DataFrame)
+    pd.testing.assert_frame_equal(
+        result_all_parallel.round(1),
+        result_all_sequential.round(1),
+        check_exact=False,
+        rtol=0.1
+    )
