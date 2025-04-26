@@ -1,6 +1,6 @@
 # Contributing
 
-This is Open Source software, so [given enough eyeballs, all bugs are shallow](https://en.wikipedia.org/wiki/Linus%27s_Law). Your contributions are more than welcome.
+This is Open Source software, so [given enough eyeballs, all bugs are shallow](https://en.wikipedia.org/wiki/Linus%27s_Law). Your contributions are more than welcome in form of bug reports, feature requests, and pull requests. Please feel free to reach out to the authors for any questions or concerns.
 
 This project is hosted on [GitHub](https://github.com/DhyeyMavani2003/ccrvam) and these (common) rules apply:
 

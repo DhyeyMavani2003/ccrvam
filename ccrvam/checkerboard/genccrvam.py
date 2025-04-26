@@ -6,18 +6,18 @@ import os
 from .utils import gen_case_form_to_contingency
 
 class GenericCCRVAM:
-    """Central Generic Checkerboard Copula Regression and Visualization of Association Measure (CCRVAM) class object."""
+    """Central Generic Checkerboard Copula Regression, Visualization and Association Measure (CCRVAM) class object."""
     @classmethod
     def from_contingency_table(
         cls: 'GenericCCRVAM',
         contingency_table: np.ndarray
     ) -> 'GenericCCRVAM':
         """
-        Create a CCRVAM object instance from a N-dimensional contingency table.
+        Create a CCRVAM object instance from a multi-dimensional contingency table.
 
         Input Arguments
         --------------
-        - `contingency_table` : A contingency table of frequency counts (N-dimensional numpy array)
+        - `contingency_table` : A contingency table of frequency counts (multi-dimensional numpy array)
 
         Outputs
         -------
@@ -41,34 +41,46 @@ class GenericCCRVAM:
     def from_cases(
         cls: 'GenericCCRVAM',
         cases: np.ndarray,
-        shape: tuple
+        dimension: tuple
     ) -> 'GenericCCRVAM':
         """
-        Create a CCRVAM object instance from a list of cases.
+        Create a CCRVAM object instance from the case form data.
 
         Input Arguments
         --------------
         - `cases` : A 2D array where each row represents a case array of observed values for each categorical variable.
-        - `shape` : Shape of the contingency table to create
+                   Each column corresponds to a different variable, and the values in each column represent the 
+                   category indices for that variable (1-indexed).
+        - `dimension` : A tuple specifying the number of categories for each variable in the same order as the columns
+                       in `cases`. For example, if `cases` has 3 columns representing variables A, B, and C with 
+                       2, 3, and 4 categories respectively, then `dimension` should be (2,3,4).
 
         Outputs
         -------
-        A new GenericCCRVAM object instance initialized with the probability matrix, which will allow for further statistical analysis of the data.
+        A new GenericCCRVAM object instance initialized with the probability matrix, which will allow for further 
+        statistical analysis of the data.
 
         Warnings/Errors
         --------------
-        - `ValueError` : If the input cases are not 2-dimensional or the shape tuple does not match the number of variables
+        - `ValueError` : If the input cases are not 2-dimensional or if the dimension tuple does not match the 
+                        number of variables and their categories in the cases data.
+
+        Example
+        -------
+        >>> cases = np.array([[1,1,1], [1,2,1], [2,1,2]])  # 3 cases with 3 variables
+        >>> dimension = (2,2,2)  # Each variable has 2 categories
+        >>> ccrvam = GenericCCRVAM.from_cases(cases, dimension)
         """
         if cases.ndim != 2:
             raise ValueError("Cases must be a 2D array")
             
-        if cases.shape[1] != len(shape):
-            raise ValueError("Shape tuple must match number of variables")
+        if cases.shape[1] != len(dimension):
+            raise ValueError("Dimension tuple must match number of variables")
             
         # Convert from 1-indexed input to 0-indexed categorical cases
         cases -= 1
         
-        contingency_table = gen_case_form_to_contingency(cases, shape)
+        contingency_table = gen_case_form_to_contingency(cases, dimension)
         return cls.from_contingency_table(contingency_table)
     
     def __init__(
@@ -87,17 +99,17 @@ class GenericCCRVAM:
         self.dimension = P.shape
         
         # Calculate and store marginals for each axis
-        self.marginal_pdfs = {}
+        self.marginal_pmfs = {}
         self.marginal_cdfs = {}
         self.scores = {}
         
         for axis in range(self.ndim):
-            # Calculate marginal PDF
-            pdf = P.sum(axis=tuple(i for i in range(self.ndim) if i != axis))
-            self.marginal_pdfs[axis] = pdf
+            # Calculate marginal PMF
+            pmf = P.sum(axis=tuple(i for i in range(self.ndim) if i != axis))
+            self.marginal_pmfs[axis] = pmf
             
             # Calculate marginal CDF
-            cdf = np.insert(np.cumsum(pdf), 0, 0)
+            cdf = np.insert(np.cumsum(pmf), 0, 0)
             self.marginal_cdfs[axis] = cdf
             
             # Calculate scores
@@ -109,7 +121,7 @@ class GenericCCRVAM:
     @property
     def contingency_table(self) -> np.ndarray:
         """
-        Get the contingency table by rescaling the probability matrix.
+        Get the contingency table by rescaling the internal joint probability matrix.
         
         This property converts the internal joint probability matrix (P) back to an 
         approximate N-dimensional contingency table of frequency counts. Since the exact original counts
@@ -132,7 +144,7 @@ class GenericCCRVAM:
         Warnings/Errors
         -------
         This is an approximation of the original contingency table since the
-        exact counts cannot be recovered from probabilities alone.
+        exact counts cannot be recovered from internal joint probabilities alone.
         """
         # Multiply by the smallest number that makes all entries close to integers
         scale = 1 / np.min(self.P[self.P > 0]) if np.any(self.P > 0) else 1
@@ -149,17 +161,17 @@ class GenericCCRVAM:
         
         Input Arguments
         --------------
-        - `predictors` : List of 1-indexed predictors axes for directional association
-        - `response` : 1-indexed target response axis for directional association
-        - `scaled` : Whether to return standardized statistical measure (default: False)
+        - `predictors` : List of 1-indexed predictors axes for regression association
+        - `response` : 1-indexed target response variable axis for regression association
+        - `scaled` : Whether to return scaled or normalized CCRAM statistical measure (default: False)
             
         Outputs
         -------
-        (Standardized) CCRAM value for the given predictors and response
+        (Scaled) CCRAM value for the given predictors and response variable
         
         Warnings/Errors
         --------------
-        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the response variable axis is out of bounds for the array dimension
         - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
         """
         if not isinstance(predictors, list):
@@ -212,26 +224,26 @@ class GenericCCRVAM:
         variable_names: Union[dict, None] = None
     ) -> pd.DataFrame:
         """
-        Get category predictions with multiple conditioning axes.
+        Get predictions of response variable categories conditioned on multiple predictor variables.
         
         Input Arguments
         --------------
         - `predictors` : List of 1-indexed predictors axes for category prediction
-        - `response` : 1-indexed target response axis for category prediction
+        - `response` : 1-indexed target response variable axis for category prediction
         - `variable_names` : Dictionary mapping 1-indexed variable indices to names (default: None)
             
         Outputs
         -------
-        DataFrame containing source and predicted categories
+        DataFrame containing the predicted category of the response variable for each combination of categories of the predictors
         
         Notes
         -----
-        The DataFrame contains columns for each source axis category and the 
-        predicted target axis category. The categories are 1-indexed.
+        The DataFrame contains columns for each combination of categories of the predictors and the corresponding predicted category of the response variable.
+        The categories are 1-indexed.
         
         Warnings/Errors
         --------------
-        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the response variable axis is out of bounds for the array dimension
         - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
         """
         # Flag to hide response default name if variable_names is not provided
@@ -278,15 +290,14 @@ class GenericCCRVAM:
         response: int
     ) -> int:
         """
-        Calculate the predicted category under joint independence.
+        Calculate the predicted category under joint independence between the response variables and predictors.
         
-        According to Proposition 2.1(c) from the visualization paper, the CCR value
-        equals 0.5 under the assumption of joint independence between the 
+        The CCR value equals 0.5 under the assumption of joint independence between the 
         response variable and all predictor variables.
         
         Input Arguments
         --------------
-        - `response` : 1-indexed target response axis
+        - `response` : 1-indexed target response variable axis
             
         Outputs
         -------
@@ -296,16 +307,16 @@ class GenericCCRVAM:
         -----
         This prediction serves as an important reference point when interpreting
         CCR prediction results, as it represents what would be predicted if there
-        were no association between the predictors and the response.
+        were no association between the predictors and the response variable.
         
         Warnings/Errors
         --------------
-        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the response variable axis is out of bounds for the array dimension
         """
         parsed_response = response - 1
         
         if parsed_response < 0 or parsed_response >= self.ndim:
-            raise ValueError(f"Response axis {response} is out of bounds")
+            raise ValueError(f"Response variable axis {response} is out of bounds")
         
         # Under independence, the regression value is 0.5 according to Proposition 2.1(c)
         independence_regression_value = 0.5
@@ -332,7 +343,7 @@ class GenericCCRVAM:
             
         Outputs
         -------
-        Array containing checkerboard scores for the given axis
+        Array containing checkerboard scores for the given variable index
         
         Warnings/Errors
         --------------
@@ -346,21 +357,19 @@ class GenericCCRVAM:
         var_index: int
     ) -> float:
         """
-        Calculate the variance of score S for the specified variable index.
-        
+        Calculate the variance of the checkerboard score for the specified variable index.
+
         Input Arguments
         --------------
-        var_index : int
-            1-Indexed axis of the variable for which to calculate variance
+        - `var_index` : 1-Indexed axis of the variable for which to calculate variance of the checkerboard score
             
         Outputs
         -------
-        float
-            Variance of score S for the given axis
+        - `float` : Variance of the checkerboard score for the given variable index
         
         Warnings/Errors
         --------------
-        - `ValueError` : If the axis is out of bounds for the array dimension
+        - `ValueError` : If the variable index is out of bounds for the array dimension
         """
         parsed_axis = var_index - 1
         return self._calculate_sigma_sq_S_vectorized(parsed_axis)
@@ -382,10 +391,10 @@ class GenericCCRVAM:
         Input Arguments
         --------------
         - `predictors` : List of 1-indexed predictor axes
-        - `response` : 1-indexed response axis
+        - `response` : 1-indexed response variable axis
         - `variable_names` : Dictionary mapping indices to variable names (default: None)
-        - `legend_style` : How to display predictor combinations: 'side' (default) or 'xaxis'
-        - `show_indep_line` : Whether to show the prediction under joint independence (default: True)
+        - `legend_style` : How to display combinations of categories of predictors: 'side' (default) or 'xaxis'
+        - `show_indep_line` : Whether to show the prediction under joint independence between the response variable and all the predictors (default: True)
         - `figsize` : Figure size (width, height)
         - `save_path` : Path to save the plot (e.g. 'plots/ccr_pred.pdf')
         - `dpi` : Resolution for saving raster images (png, jpg)
@@ -396,7 +405,7 @@ class GenericCCRVAM:
         
         Warnings/Errors
         --------------
-        - `ValueError` : If the response axis is out of bounds for the array dimension
+        - `ValueError` : If the response variable axis is out of bounds for the array dimension
         - `ValueError` : If the predictors contain an axis that is out of bounds for the array dimension
         """
         
@@ -556,7 +565,7 @@ class GenericCCRVAM:
                 legend_fig.savefig(legend_path, dpi=dpi, bbox_inches='tight')
     
     def _calculate_conditional_pmf(self, target_axis, given_axes):
-        """Helper function: Calculate conditional PMF P(target|given)."""
+        """Internal helper function: Calculate conditional probability mass function of the response variable given the predictors."""
         if not isinstance(given_axes, (list, tuple)):
             given_axes = [given_axes]
                 
@@ -609,7 +618,7 @@ class GenericCCRVAM:
         return conditional_prob, old_to_new
 
     def _calculate_regression_batched(self, target_axis, given_axes, given_values):
-        """Helper function: Vectorized regression calculation for multiple conditioning axes."""
+        """Internal helper function: Vectorized regression calculation for multiple predictor variables."""
         if not isinstance(given_axes, (list, tuple)):
             given_axes = [given_axes]
             given_values = [given_values]
@@ -654,12 +663,12 @@ class GenericCCRVAM:
         return results
     
     def _calculate_scores(self, marginal_cdf):
-        """Helper function: Calculate checkerboard scores from marginal CDF."""
+        """Internal helper function: Calculate checkerboard scores from marginal CDF."""
         return [(marginal_cdf[j-1] + marginal_cdf[j])/2 
                 for j in range(1, len(marginal_cdf))]
     
     def _lambda_function(self, u, ul, uj):
-        """Helper function: Calculate lambda function for checkerboard ccrvam."""
+        """Internal helper function: Calculate lambda function for checkerboard copula construction through bilinear interpolation. (Wei and Kim, 2021)"""
         if u <= ul:
             return 0.0
         elif u >= uj:
@@ -668,24 +677,24 @@ class GenericCCRVAM:
             return (u - ul) / (uj - ul)
         
     def _get_predicted_category(self, regression_value, marginal_cdf):
-        """Helper function: Get predicted category based on regression value."""
+        """Internal helper function: Get predicted category based on the calculated regression value."""
         return np.searchsorted(marginal_cdf[1:-1], regression_value, side='left')
 
     def _get_predicted_category_batched(self, regression_values, marginal_cdf):
-        """Helper function: Get predicted categories for multiple regression values."""
+        """Internal helper function: Get predicted categories for multiple calculated regression values."""
         return np.searchsorted(marginal_cdf[1:-1], regression_values, side='left')
     
     def _calculate_sigma_sq_S(self, axis):
-        """Helper function: Calculate variance of score S for given axis."""
+        """Internal helper function: Calculate variance of the checkerboard copula score for given axis."""
         # Get consecutive CDF values
         u_prev = self.marginal_cdfs[axis][:-1]
         u_next = self.marginal_cdfs[axis][1:]
         
         # Calculate each term in the sum
         terms = []
-        for i in range(len(self.marginal_pdfs[axis])):
+        for i in range(len(self.marginal_pmfs[axis])):
             if i < len(u_prev) and i < len(u_next):
-                term = u_prev[i] * u_next[i] * self.marginal_pdfs[axis][i]
+                term = u_prev[i] * u_next[i] * self.marginal_pmfs[axis][i]
                 terms.append(term)
         
         # Calculate sigma_sq_S
@@ -693,20 +702,20 @@ class GenericCCRVAM:
         return sigma_sq_S
 
     def _calculate_sigma_sq_S_vectorized(self, axis):
-        """Helper function: Calculate variance of score S using vectorized operations."""
+        """Internal helper function: Calculate variance of the checkerboard score using vectorized operations."""
         # Get consecutive CDF values
         u_prev = self.marginal_cdfs[axis][:-1]
         u_next = self.marginal_cdfs[axis][1:]
         
         # Vectorized multiplication of all terms
-        terms = u_prev * u_next * self.marginal_pdfs[axis]
+        terms = u_prev * u_next * self.marginal_pmfs[axis]
         
         # Calculate sigma_sq_S
         sigma_sq_S = np.sum(terms) / 4.0
         return sigma_sq_S
     
     def _predict_category(self, source_category, predictors, response):
-        """Helper function: Predict category for target axis given source category."""
+        """Internal helper function: Predict the category of the response variable given given combination of categories of predictors."""
         if not isinstance(source_category, (list, tuple)):
             source_category = [source_category]
         if not isinstance(predictors, (list, tuple)):
@@ -736,7 +745,7 @@ class GenericCCRVAM:
         predictors, 
         response
     ):
-        """Helper function: Vectorized prediction with multiple conditioning axes."""
+        """Internal helper function: Vectorized prediction with multiple predictor variables."""
         if not isinstance(predictors, (list, tuple)):
             predictors = [predictors]
 

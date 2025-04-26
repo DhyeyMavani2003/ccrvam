@@ -365,17 +365,17 @@ def test_from_cases_creation(cases_4d, table_4d, expected_shape):
     print(table_4d)
     assert np.all(cop.contingency_table == table_4d)
 
-def test_from_cases_marginal_pdfs(cases_4d, expected_shape):
-    """Test marginal PDFs calculation from cases."""
+def test_from_cases_marginal_pmfs(cases_4d, expected_shape):
+    """Test marginal PMFs calculation from cases."""
     cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
     
-    # Test marginal PDFs exist for each dimension
-    assert len(cop.marginal_pdfs) == 4
+    # Test marginal PMFs exist for each dimension
+    assert len(cop.marginal_pmfs) == 4
     
-    # Test each marginal PDF sums to 1
+    # Test each marginal PMF sums to 1
     for axis in range(4):
-        pdf = cop.marginal_pdfs[axis]
-        assert np.isclose(np.sum(pdf), 1.0)
+        pmf = cop.marginal_pmfs[axis]
+        assert np.isclose(np.sum(pmf), 1.0)
 
 def test_from_cases_marginal_cdfs(cases_4d, expected_shape):
     """Test marginal CDFs calculation from cases."""
