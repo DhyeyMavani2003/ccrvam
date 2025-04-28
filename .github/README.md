@@ -13,7 +13,7 @@
 CCRVAM is a Python package for analyzing associations between categorical variables using Checkerboard Copula Regression. It provides tools for:
 
 - Construction of CCRVAM objects from three forms of categorical data (case form, frequency form, table form)
-- Calculation of marginal distributions and CDFs of each categorical variable
+- Calculation of marginal distributions and CDFs of categorical variables
 - Computation of Checkerboard Copula Regression (CCR), its Prediction and Visualization
 - Implementation of Checkerboard Copula Regression Association Measure (CCRAM) and Scaled CCRAM (SCCRAM)
 - Bootstrap functionality for CCR-based prediction, CCRAM and SCCRAM
@@ -79,6 +79,8 @@ For detailed examples in Jupyter Notebooks and beyond (organized by functionalit
 
 ### Project Structure
 
+This diagram illustrates the main components of the `ccrvam` package. Understanding this structure can help package users and developers navigate the codebase, locate specific functionalities (like data processing in `utils.py` or the core CCRVAM logic in `genccrvam.py`), and understand how different modules interact. The `examples/` and `tests/` directories provide practical usage scenarios and verification tests, respectively.
+
 ```mermaid
 graph TD
     A[ccrvam] --> B[checkerboard]
@@ -99,7 +101,9 @@ graph TD
     E --> E3[test_utils.py]
 ```
 
-### Workflow Overview
+### User Workflow Overview
+
+This flowchart outlines the typical steps involved when using the `ccrvam` package, from loading data to performing analyses like calculating CCRAM or generating predictions, and utilizing bootstrap/permutation functionalities. It provides a high-level view of how different functions connect and the expected data flow through the package.
 
 ```mermaid
 flowchart TD
