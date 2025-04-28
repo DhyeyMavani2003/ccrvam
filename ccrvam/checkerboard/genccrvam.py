@@ -118,38 +118,6 @@ class GenericCCRVAM:
         # Store conditional PMFs
         self.conditional_pmfs = {}
         
-    @property
-    def contingency_table(self) -> np.ndarray:
-        """
-        Get the contingency table by rescaling the internal joint probability matrix.
-        
-        This property converts the internal joint probability matrix (P) back to an 
-        approximate N-dimensional contingency table of frequency counts. Since the exact original counts
-        cannot be recovered, it scales the probabilities by finding the smallest 
-        non-zero probability and using its reciprocal as a multiplier.
-        
-        Outputs
-        -------
-        A matrix of integer frequency counts representing the N-dimensional contingency table. 
-        The values are rounded to the nearest integer after scaling.
-        
-        Notes
-        -----
-        The scaling process works by:
-        1. Finding the smallest non-zero probability in the matrix
-        2. Using its reciprocal as the scaling factor
-        3. Multiplying all probabilities by this scale
-        4. Rounding to nearest integers
-        
-        Warnings/Errors
-        -------
-        This is an approximation of the original contingency table since the
-        exact counts cannot be recovered from internal joint probabilities alone.
-        """
-        # Multiply by the smallest number that makes all entries close to integers
-        scale = 1 / np.min(self.P[self.P > 0]) if np.any(self.P > 0) else 1
-        return np.round(self.P * scale).astype(int)
-        
     def calculate_CCRAM(
         self,
         predictors: Union[int, list],

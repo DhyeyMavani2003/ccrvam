@@ -361,9 +361,7 @@ def test_from_cases_creation(cases_4d, table_4d, expected_shape):
     assert cop.P.shape == expected_shape
     assert np.all(cop.P >= 0)
     assert np.isclose(cop.P.sum(), 1.0)
-    print(cop.contingency_table)
-    print(table_4d)
-    assert np.all(cop.contingency_table == table_4d)
+    assert np.all(cop.P == GenericCCRVAM.from_contingency_table(table_4d).P)
 
 def test_from_cases_marginal_pmfs(cases_4d, expected_shape):
     """Test marginal PMFs calculation from cases."""
@@ -421,16 +419,6 @@ def test_from_cases_invalid_input(cases_4d):
     
     with pytest.raises(ValueError):
         GenericCCRVAM.from_cases(cases_4d, invalid_shape)
-
-def test_from_cases_contingency_table(cases_4d, expected_shape):
-    """Test contingency table properties from cases."""
-    cop = GenericCCRVAM.from_cases(cases_4d, expected_shape)
-    
-    # Test contingency table properties
-    table = cop.contingency_table
-    assert table.shape == expected_shape
-    assert np.all(table >= 0)  # Non-negative counts
-    assert np.sum(table) == len(cases_4d)  # Sum equals number of cases
     
 def test_4d_ccram_calculations(cases_4d, expected_shape):
     """Test CCRAM calculations for 4D case with multiple conditioning axes."""
