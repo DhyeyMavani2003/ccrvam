@@ -6,7 +6,7 @@ from ccrvam.checkerboard.utils import (
     gen_case_form_to_contingency
 )
 from ccrvam.checkerboard.utils import DataProcessor
-
+from ccrvam import GenericCCRVAM
 @pytest.fixture
 def contingency_table():
     """
@@ -74,8 +74,8 @@ def gen_contingency_table():
 def gen_case_form_data():
     """Fixture for corresponding case-form data."""
     return np.array([
-        [0, 0], [0, 0],  # 2 cases
-        [0, 1],          # 1 case
+        [0, 0], [0, 0],         # 2 cases
+        [0, 1],                 # 1 case
         [1, 1], [1, 1], [1, 1]  # 3 cases
     ])
 
@@ -416,3 +416,41 @@ def test_load_freqform_data_with_delimiter(sample_var_list, sample_category_map,
     assert table2.shape == table_4d.shape
     assert table2.dtype == table_4d.dtype
     np.testing.assert_array_equal(table2, table_4d)
+    
+@pytest.fixture
+def table_4d_float():
+    """Fixture for 4D contingency table with float values."""
+    return np.array(
+        [[[[ 7.97927461, 14.65284974,  5.36787565],
+           [ 9.40414508, 17.26943005,  6.32642487]],
+          [[ 8.2642487,  15.1761658,   5.55958549],
+           [ 6.83937824, 12.55958549,  4.60103627]]],
+          [[[ 6.83937824, 12.55958549,  4.60103627],
+           [ 5.98445596, 10.98963731,  4.02590674]],
+          [[ 4.55958549,  8.37305699,  3.06735751],
+           [ 5.12953368,  9.41968912,  3.4507772 ]]]]
+    )
+
+def test_load_tableform_data_with_delimiter(table_4d_float):
+    """Test loading tableform data with delimiter."""
+    
+    ccrvam_obj = GenericCCRVAM.from_contingency_table(table_4d_float)
+    
+    # Load the data
+    table_loaded = DataProcessor.load_data(
+        table_4d_float,
+        data_form="table_form",
+        dimension=(2, 2, 2, 3)
+    )
+    
+    assert table_loaded.shape == table_4d_float.shape
+    assert table_loaded.dtype == table_4d_float.dtype
+    np.testing.assert_array_equal(table_loaded, table_4d_float)
+    
+    # CCRVAM object initialization after loading tableform data
+    ccrvam_obj_after_loading = GenericCCRVAM.from_contingency_table(table_loaded)
+    assert ccrvam_obj_after_loading.P.shape == ccrvam_obj.P.shape
+    assert ccrvam_obj_after_loading.P.dtype == ccrvam_obj.P.dtype
+    np.testing.assert_array_equal(ccrvam_obj_after_loading.P, ccrvam_obj.P)
+    
+    

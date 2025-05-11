@@ -497,16 +497,17 @@ def test_bootstrap_predict_ccr_summary_plotting(table_4d):
     )
     
     # Test basic plotting
-    fig, ax = summary_df.plot_prediction_heatmap()
+    fig, ax = summary_df.plot_predictions_summary()
     assert isinstance(fig, plt.Figure)
     assert isinstance(ax, plt.Axes)
     
     # Test plotting with different options
-    fig, ax = summary_df.plot_prediction_heatmap(
+    fig, ax = summary_df.plot_predictions_summary(
         show_values=False,
         show_indep_line=False,
         cmap='Reds',
-        figsize=(12, 8)
+        figsize=(12, 8),
+        plot_type='bubble'
     )
     assert isinstance(fig, plt.Figure)
     assert isinstance(ax, plt.Axes)

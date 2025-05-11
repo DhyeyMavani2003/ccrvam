@@ -436,17 +436,18 @@ def bootstrap_predict_ccr_summary(
     # Add predictions DataFrame as an attribute to the summary DataFrame
     summary_df.predictions = pred_df
     
-    def plot_prediction_heatmap(
+    def plot_predictions_summary(
         prediction_matrix: pd.DataFrame = summary_df, 
         figsize: Optional[Tuple[int, int]] = None, 
         show_values: bool = True,
         show_indep_line: bool = True,
         cmap: str = 'Blues', 
         save_path: Optional[str] = None, 
-        dpi: Optional[int] = 300
+        dpi: Optional[int] = 300,
+        plot_type: str = 'heatmap'
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
-        Plot prediction percentages as a heatmap visualization.
+        Plot prediction percentages as either a heatmap or bubble plot visualization.
         
         Input Arguments
         --------------
@@ -454,9 +455,10 @@ def bootstrap_predict_ccr_summary(
         - `figsize` : Tuple of figure size (width, height) (optional)
         - `show_values` : Whether to show percentage values (default=True)
         - `show_indep_line` : Whether to show dotted line for predictions under joint independence (default=True)
-        - `cmap` : Colormap for heatmap (default='Blues')
+        - `cmap` : Colormap for visualization (default='Blues')
         - `save_path` : Path to save the plot (optional)
         - `dpi` : Resolution for saved image (default=300) (optional)
+        - `plot_type` : Type of plot to generate ('heatmap' or 'bubble') (default='heatmap')
             
         Outputs
         -------
@@ -475,24 +477,8 @@ def bootstrap_predict_ccr_summary(
         # Sort the DataFrame by index in descending order to get categories from highest to lowest
         prediction_matrix_sorted = prediction_matrix.sort_index(ascending=False)
         
-        # Create heatmap with sorted data
-        im = ax.imshow(prediction_matrix_sorted.values, cmap=cmap, aspect='auto')
-        
         # Check if we have predictions attribute
         has_predictions = hasattr(prediction_matrix, 'predictions')
-        
-        # Add text values if requested
-        if show_values:
-            for i in range(n_rows):
-                for j in range(n_cols):
-                    value = prediction_matrix_sorted.iloc[i, j]
-                    # Only show non-zero values
-                    if value > 0:
-                        text_color = 'white' if value > 50 else 'black'
-                        ax.text(j, i - 0.25, f"{value:.2f}%", 
-                            ha='center', va='top', 
-                            color=text_color, fontweight='bold',
-                            fontsize=10)
         
         # Create legend elements and x-axis labels
         legend_elements = []
@@ -518,25 +504,109 @@ def bootstrap_predict_ccr_summary(
             legend_elements.append(f"#{j+1}: {var_names_str} = {values_str}")
             x_labels.append(f"{values_str}")
         
-        # Set x-axis labels based on legend style
-        ax.set_xticks(range(n_cols))
-        ax.set_xticklabels(x_labels, rotation=45, ha='right')
-        
-        # Set y-axis labels
-        ax.set_yticks(range(n_rows))
-        ax.set_yticklabels(prediction_matrix_sorted.index)
-        
-        # Add dots for predicted categories if predictions are available
-        if has_predictions:
-            for j, col_name in enumerate(prediction_matrix_sorted.columns):
-                if col_name in prediction_matrix.predictions.columns:
-                    pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
-                    
-                    # Find the row index for this category in the sorted dataframe
-                    for i, idx in enumerate(prediction_matrix_sorted.index):
-                        if idx.endswith(f"={pred_cat}"):
-                            ax.plot(j, i, 'o', color='white', markersize=8, markerfacecolor='white')
-                            break
+        if plot_type == 'heatmap':
+            # Create heatmap with sorted data
+            im = ax.imshow(prediction_matrix_sorted.values, cmap=cmap, aspect='auto')
+            
+            # Add text values if requested
+            if show_values:
+                for i in range(n_rows):
+                    for j in range(n_cols):
+                        value = prediction_matrix_sorted.iloc[i, j]
+                        # Only show non-zero values
+                        if value > 0:
+                            text_color = 'white' if value > 50 else 'black'
+                            ax.text(j, i - 0.25, f"{value:.2f}%", 
+                                ha='center', va='top', 
+                                color=text_color, fontweight='bold',
+                                fontsize=10)
+            
+            # Set x-axis labels based on legend style
+            ax.set_xticks(range(n_cols))
+            ax.set_xticklabels(x_labels, rotation=45, ha='right')
+            
+            # Set y-axis labels
+            ax.set_yticks(range(n_rows))
+            ax.set_yticklabels(prediction_matrix_sorted.index)
+            
+            # Add dots for predicted categories if predictions are available
+            if has_predictions:
+                for j, col_name in enumerate(prediction_matrix_sorted.columns):
+                    if col_name in prediction_matrix.predictions.columns:
+                        pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
+                        
+                        # Find the row index for this category in the sorted dataframe
+                        for i, idx in enumerate(prediction_matrix_sorted.index):
+                            if idx.endswith(f"={pred_cat}"):
+                                ax.plot(j, i, 'o', color='white', markersize=8, markerfacecolor='white')
+                                break
+            
+            # Add colorbar
+            cbar = plt.colorbar(im, ax=ax)
+            cbar.set_label("Prediction Percentage (%)")
+            
+        elif plot_type == 'bubble':
+            # Create bubble plot
+            x = np.arange(n_cols)
+            y = np.arange(n_rows)
+            X, Y = np.meshgrid(x, y)
+            
+            # Get values and normalize for bubble sizes
+            values = prediction_matrix_sorted.values
+            sizes = values.flatten() * 100  # Scale up for better visibility
+            colors = values.flatten()
+            
+            # Create scatter plot with varying size and color
+            scatter = ax.scatter(X.flatten(), Y.flatten(), 
+                               s=sizes, c=colors, cmap=cmap,
+                               alpha=0.6, edgecolors='black', linewidth=0.5)
+            
+            # Add text values if requested
+            if show_values:
+                for i in range(n_rows):
+                    for j in range(n_cols):
+                        value = prediction_matrix_sorted.iloc[i, j]
+                        # Only show non-zero values
+                        if value > 0:
+                            text_color = 'white' if value > 50 else 'black'
+                            ax.text(j, i + 0.25, f"{value:.2f}%", 
+                                ha='center', va='center', 
+                                color=text_color, fontweight='bold',
+                                fontsize=9)
+            
+            # Set x-axis labels
+            ax.set_xticks(range(n_cols))
+            ax.set_xticklabels(x_labels, rotation=45, ha='right')
+            
+            # Set y-axis labels
+            ax.set_yticks(range(n_rows))
+            ax.set_yticklabels(prediction_matrix_sorted.index)
+            
+            # Add dots for predicted categories if predictions are available
+            if has_predictions:
+                for j, col_name in enumerate(prediction_matrix_sorted.columns):
+                    if col_name in prediction_matrix.predictions.columns:
+                        pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
+                        
+                        # Find the row index for this category in the sorted dataframe
+                        for i, idx in enumerate(prediction_matrix_sorted.index):
+                            if idx.endswith(f"={pred_cat}"):
+                                ax.plot(j, i, 'o', color='white', markersize=8, 
+                                      markerfacecolor='white', markeredgecolor='black')
+                                break
+            
+            # Add colorbar
+            cbar = plt.colorbar(scatter, ax=ax)
+            cbar.set_label("Prediction Percentage (%)")
+            
+            # Set aspect ratio to 'equal' for better bubble visualization
+            ax.set_aspect('equal')
+            
+            # Adjust y-axis limits to prevent bubble cutoff
+            ax.set_ylim(-0.5, n_rows - 0.5)
+            
+        else:
+            raise ValueError("plot_type must be either 'heatmap' or 'bubble'")
         
         # Add dotted line for independence predictions if requested
         if show_indep_line and has_predictions:
@@ -562,10 +632,6 @@ def bootstrap_predict_ccr_summary(
         ax.set_xlabel(f"Category Combinations of {var_names_str}")
         ax.set_ylabel(f"{response_name} Categories")
         
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label("Prediction Percentage (%)")
-        
         plt.tight_layout()
         
         # Save if requested
@@ -587,7 +653,7 @@ def bootstrap_predict_ccr_summary(
     summary_df.predictions = np.transpose(pred_df)
     
     # Attach the plotting and saving methods to the DataFrame
-    summary_df.plot_prediction_heatmap = plot_prediction_heatmap
+    summary_df.plot_predictions_summary = plot_predictions_summary
     
     return summary_df
 

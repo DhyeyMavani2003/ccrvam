@@ -103,7 +103,7 @@ coverage: test
 	coverage lcov
 
 lint: env-test
-	ruff check --target-version=$(RUFF_PYTHON_VERSION) .
+	pyenv exec ruff check --target-version=$(RUFF_PYTHON_VERSION) .
 
 docs: env-docs
 	cd docs; make html

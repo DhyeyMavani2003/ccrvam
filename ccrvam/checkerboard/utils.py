@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from typing import Union, Dict, List, Optional
-
+import warnings
 class DataProcessor:
     """Data processing engine for contingency table analysis."""
     
@@ -185,7 +185,12 @@ class DataProcessor:
         """Internal helper to process table form data."""
         if data.shape != shape:
             raise ValueError(f"Table shape {data.shape} doesn't match specified shape {shape}")
-        return data.astype(int)
+        
+        # Log a warning if the data is not an integer, but not an error
+        if not np.issubdtype(data.dtype, np.integer):
+            warnings.warn("[WARNING]Table form data has non-integer values", UserWarning)
+        
+        return data
         
 def gen_contingency_to_case_form(
     contingency_table: np.ndarray
