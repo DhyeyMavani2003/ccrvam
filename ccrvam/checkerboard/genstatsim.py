@@ -309,7 +309,7 @@ def bootstrap_predict_ccr_summary(
     Notes
     -----
     - The output is a pandas DataFrame with the percentage of the predicted category of the response variable for each combination of categories of the predictors.
-    - The output also includes a method `plot_prediction_heatmap` to plot the prediction matrix as a heatmap.
+    - The output also includes a method `plot_predictions_summary` to plot the prediction matrix as a heatmap or bubble plot.
     """
     # Set random seed if provided
     if random_state is not None:
