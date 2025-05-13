@@ -514,8 +514,21 @@ def bootstrap_predict_ccr_summary(
             
             # Map each row to its correct display position
             for i, idx in enumerate(prediction_matrix_sorted.index):
-                # Get category number (e.g., "Pain=6" -> 6)
-                category = int(idx.split('=')[1])
+                # Extract category number from the index, handling different formats
+                # e.g., "Pain=6" -> 6, "Y = X4=6" -> 6
+                try:
+                    # First try direct splitting (e.g., "Pain=6")
+                    category = int(idx.split('=')[1])
+                except (IndexError, ValueError):
+                    # If that fails, try finding the last number in the string
+                    import re
+                    match = re.search(r'(\d+)$', idx)
+                    if match:
+                        category = int(match.group(1))
+                    else:
+                        # Default to position if we can't extract a number
+                        category = i + 1
+                
                 # Map to 0-indexed position from top (n_rows - category)
                 display_pos = n_rows - category
                 # Ensure display_pos is within bounds
@@ -532,7 +545,19 @@ def bootstrap_predict_ccr_summary(
                     for j in range(n_cols):
                         # Get the category number for this row
                         row_idx = prediction_matrix_sorted.index[i]
-                        category = int(row_idx.split('=')[1])
+                        try:
+                            # First try direct splitting (e.g., "Pain=6")
+                            category = int(row_idx.split('=')[1])
+                        except (IndexError, ValueError):
+                            # If that fails, try finding the last number in the string
+                            import re
+                            match = re.search(r'(\d+)$', row_idx)
+                            if match:
+                                category = int(match.group(1))
+                            else:
+                                # Default to position if we can't extract a number
+                                category = i + 1
+                        
                         # Calculate display position
                         display_pos = n_rows - category
                         display_pos = max(0, min(display_pos, n_rows - 1))
