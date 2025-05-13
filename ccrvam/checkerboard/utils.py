@@ -175,6 +175,9 @@ class DataProcessor:
         
         # Fill table with frequencies
         for case, freq in zip(cases, freqs):
+            # Skip rows with NaN values
+            if np.isnan(case).any() or np.isnan(freq):
+                continue
             idx = tuple(int(i) for i in case)
             table[idx] = int(freq)
             

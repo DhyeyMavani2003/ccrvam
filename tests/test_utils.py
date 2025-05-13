@@ -453,4 +453,43 @@ def test_load_tableform_data_with_delimiter(table_4d_float):
     assert ccrvam_obj_after_loading.P.dtype == ccrvam_obj.P.dtype
     np.testing.assert_array_equal(ccrvam_obj_after_loading.P, ccrvam_obj.P)
     
+def test_load_arthritis_data():
+    var_list_4d = ["Improved", "Treatment", "Age", "Sex"]
+    category_map_4d = {
+        "Improved": {
+            "None": 1,
+            "Some": 2,
+            "Marked": 3
+        },
+        "Treatment": {
+            "Placebo": 1,
+            "Treated": 2
+        },
+        "Sex": {
+            "Female": 1,        
+            "Male": 2
+        },
+    }
+    data_dimension = (3,2,4,2)
+
+    Arthritis = DataProcessor.load_data(
+                            "./tests/data/Arthritis_freq.txt",
+                            data_form="frequency_form",
+                            dimension=data_dimension,
+                            var_list=var_list_4d,
+                            category_map=category_map_4d,
+                            named=True,
+                            delimiter="\t"
+                        )
     
+    # Verify the data was loaded correctly
+    assert Arthritis.shape == data_dimension
+    assert Arthritis.dtype == np.int64
+    
+    # Verify specific values from the data:
+    # Row 18: Marked Treated 3 Female 10
+    assert Arthritis[2, 1, 2, 0] == 10
+    
+    # Check other values identified in debug output
+    assert Arthritis[1, 1, 3, 0] == 4
+    assert Arthritis[2, 1, 3, 0] == 4

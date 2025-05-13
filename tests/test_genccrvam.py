@@ -4,8 +4,7 @@ import pytest
 import matplotlib.pyplot as plt
 import os 
 import tempfile
-from ccrvam import GenericCCRVAM
-
+from ccrvam import GenericCCRVAM, DataProcessor
 @pytest.fixture
 def generic_ccrvam():
     """Fixture providing a GenericCCRVAM instance with test data."""
@@ -663,3 +662,38 @@ def test_heatmap_content(table_4d):
     assert y_labels == [str(i) for i in range(table_4d.shape[-1], 0, -1)]
     
     plt.close('all')
+    
+def test_Arthritis_data_ccram():
+    var_list_4d = ["Improved", "Treatment", "Age", "Sex"]
+    category_map_4d = {
+        "Improved": {
+            "None": 1,
+            "Some": 2,
+            "Marked": 3
+        },
+        "Treatment": {
+            "Placebo": 1,
+            "Treated": 2
+        },
+        "Sex": {
+            "Female": 1,        
+            "Male": 2
+        },
+    }
+    data_dimension = (3,2,4,2)
+
+    Arthritis = DataProcessor.load_data(
+                            "./tests/data/Arthritis_freq.txt",
+                            data_form="frequency_form",
+                            dimension=data_dimension,
+                            var_list=var_list_4d,
+                            category_map=category_map_4d,
+                            named=True,
+                            delimiter="\t"
+                        )
+    
+    ccrvam = GenericCCRVAM.from_contingency_table(Arthritis)
+    ccram = ccrvam.calculate_CCRAM([1,2,3], 4)
+    assert np.isclose(ccram, 0.0982993197278911)
+    
+    
