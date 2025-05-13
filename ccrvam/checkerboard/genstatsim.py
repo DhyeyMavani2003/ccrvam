@@ -505,29 +505,60 @@ def bootstrap_predict_ccr_summary(
             x_labels.append(f"{values_str}")
         
         if plot_type == 'heatmap':
-            # Create heatmap with sorted data
-            im = ax.imshow(prediction_matrix_sorted.values, cmap=cmap, aspect='auto')
+            # Use the same sorting as bubble plot (descending order)
+            prediction_matrix_sorted = prediction_matrix.sort_index(ascending=False)
+            
+            # Create a new array with the exact same order as shown in the bubble plot
+            # We need to manually construct this in the same order
+            display_data = np.zeros_like(prediction_matrix_sorted.values)
+            
+            # Map each row to its correct display position
+            for i, idx in enumerate(prediction_matrix_sorted.index):
+                # Get category number (e.g., "Pain=6" -> 6)
+                category = int(idx.split('=')[1])
+                # Map to 0-indexed position from top (n_rows - category)
+                display_pos = n_rows - category
+                # Ensure display_pos is within bounds
+                display_pos = max(0, min(display_pos, n_rows - 1))
+                # Copy data to that position
+                display_data[display_pos] = prediction_matrix_sorted.iloc[i].values
+            
+            # Create heatmap with manually ordered data
+            im = ax.imshow(display_data, cmap=cmap, aspect='auto')
             
             # Add text values if requested
             if show_values:
                 for i in range(n_rows):
                     for j in range(n_cols):
+                        # Get the category number for this row
+                        row_idx = prediction_matrix_sorted.index[i]
+                        category = int(row_idx.split('=')[1])
+                        # Calculate display position
+                        display_pos = n_rows - category
+                        display_pos = max(0, min(display_pos, n_rows - 1))
+                        
                         value = prediction_matrix_sorted.iloc[i, j]
-                        # Only show non-zero values
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
-                            ax.text(j, i - 0.25, f"{value:.2f}%", 
-                                ha='center', va='top', 
-                                color=text_color, fontweight='bold',
-                                fontsize=10)
+                            ax.text(j, display_pos - 0.25, f"{value:.2f}%", 
+                                   ha='center', va='top', 
+                                   color=text_color, fontweight='bold',
+                                   fontsize=10)
             
-            # Set x-axis labels based on legend style
+            # Set x-axis labels
             ax.set_xticks(range(n_cols))
             ax.set_xticklabels(x_labels, rotation=45, ha='right')
             
-            # Set y-axis labels in reverse order to match heatmap
+            # Create y-tick labels in the order they should appear
+            y_labels = []
+            for i in range(n_rows):
+                # Position 0 should be the highest category (n_rows)
+                category = n_rows - i
+                y_labels.append(f"{response_name}={category}")
+            
+            # Set y-axis labels
             ax.set_yticks(range(n_rows))
-            ax.set_yticklabels(prediction_matrix_sorted.index[::-1])
+            ax.set_yticklabels(y_labels)
             
             # Add dots for predicted categories if predictions are available
             if has_predictions:
@@ -535,11 +566,11 @@ def bootstrap_predict_ccr_summary(
                     if col_name in prediction_matrix.predictions.columns:
                         pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
                         
-                        # Find the row index for this category in the sorted dataframe
-                        for i, idx in enumerate(prediction_matrix_sorted.index):
-                            if idx.endswith(f"={pred_cat}"):
-                                ax.plot(j, i, 'o', color='white', markersize=8, markerfacecolor='white')
-                                break
+                        # Calculate display position for the predicted category
+                        display_pos = n_rows - pred_cat
+                        display_pos = max(0, min(display_pos, n_rows - 1))
+                        
+                        ax.plot(j, display_pos, 'o', color='white', markersize=8, markerfacecolor='white')
             
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax)
