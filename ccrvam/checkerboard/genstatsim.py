@@ -525,9 +525,9 @@ def bootstrap_predict_ccr_summary(
             ax.set_xticks(range(n_cols))
             ax.set_xticklabels(x_labels, rotation=45, ha='right')
             
-            # Set y-axis labels
+            # Set y-axis labels in reverse order to match heatmap
             ax.set_yticks(range(n_rows))
-            ax.set_yticklabels(prediction_matrix_sorted.index)
+            ax.set_yticklabels(prediction_matrix_sorted.index[::-1])
             
             # Add dots for predicted categories if predictions are available
             if has_predictions:
@@ -556,8 +556,8 @@ def bootstrap_predict_ccr_summary(
             sizes = values.flatten() * 100  # Scale up for better visibility
             colors = values.flatten()
             
-            # Create scatter plot with varying size and color
-            scatter = ax.scatter(X.flatten(), Y.flatten(), 
+            # Create scatter plot with reversed y-axis order
+            scatter = ax.scatter(X.flatten(), (n_rows - 1 - Y).flatten(), 
                                s=sizes, c=colors, cmap=cmap,
                                alpha=0.6, edgecolors='black', linewidth=0.5)
             
@@ -566,32 +566,29 @@ def bootstrap_predict_ccr_summary(
                 for i in range(n_rows):
                     for j in range(n_cols):
                         value = prediction_matrix_sorted.iloc[i, j]
-                        # Only show non-zero values
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
-                            ax.text(j, i + 0.25, f"{value:.2f}%", 
-                                ha='center', va='center', 
-                                color=text_color, fontweight='bold',
-                                fontsize=9)
+                            ax.text(j, n_rows - 1 - i + 0.25, f"{value:.2f}%", 
+                                    ha='center', va='center', 
+                                    color=text_color, fontweight='bold',
+                                    fontsize=9)
             
             # Set x-axis labels
             ax.set_xticks(range(n_cols))
             ax.set_xticklabels(x_labels, rotation=45, ha='right')
             
-            # Set y-axis labels
+            # Set y-axis labels in reverse order to match heatmap
             ax.set_yticks(range(n_rows))
-            ax.set_yticklabels(prediction_matrix_sorted.index)
+            ax.set_yticklabels(prediction_matrix_sorted.index[::-1])
             
             # Add dots for predicted categories if predictions are available
             if has_predictions:
                 for j, col_name in enumerate(prediction_matrix_sorted.columns):
                     if col_name in prediction_matrix.predictions.columns:
                         pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
-                        
-                        # Find the row index for this category in the sorted dataframe
                         for i, idx in enumerate(prediction_matrix_sorted.index):
                             if idx.endswith(f"={pred_cat}"):
-                                ax.plot(j, i, 'o', color='white', markersize=8, 
+                                ax.plot(j, n_rows - 1 - i, 'o', color='white', markersize=8, 
                                       markerfacecolor='white', markeredgecolor='black')
                                 break
             
@@ -614,7 +611,13 @@ def bootstrap_predict_ccr_summary(
             # Convert to plot y-coordinate (top-down ordering)
             response_cats = ccrvam.P.shape[response]
             pred_cat_under_indep = ccrvam.get_prediction_under_indep(response+1)
-            indep_y_pos = response_cats - pred_cat_under_indep
+            
+            # For bubble plot, the y-axis is flipped so we need to adjust the indep line position
+            if plot_type == 'bubble':
+                indep_y_pos = pred_cat_under_indep - 1  # Convert from 1-indexed to 0-indexed
+            else:
+                indep_y_pos = response_cats - pred_cat_under_indep
+                
             ax.axhline(y=indep_y_pos, color='red', linestyle='--', linewidth=1.1, alpha=0.9)
         
         # Add title and labels
