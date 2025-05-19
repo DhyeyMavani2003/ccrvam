@@ -88,7 +88,6 @@ graph TD
     B --> B2[genstatsim.py<br/>Bootstrap/Permutation]
     B --> B3[utils.py<br/>DataProcessor]
 
-
     A --> F[docs/]
     B1 --> F
     B2 --> F

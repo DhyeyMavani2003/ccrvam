@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import bootstrap, permutation_test
+from scipy.stats._common import ConfidenceInterval
 from dataclasses import dataclass
 from typing import Union, Tuple, List, Optional
 import itertools
@@ -98,6 +99,39 @@ class CustomBootstrapResult:
             print(f"Warning: Could not create plot: {str(e)}")
             return None
 
+def _process_bootstrap_batch(args):
+    """Helper function for parallel bootstrap processing."""
+    bootstrap_indices, data, shape, all_axes, parsed_predictors, response, predictors, scaled, store_tables, i_start = args
+    
+    results = []
+    tables = None
+    
+    if store_tables:
+        tables = np.zeros((len(bootstrap_indices),) + shape)
+    
+    for i, indices in enumerate(bootstrap_indices):
+        # Resample the data using the bootstrap indices
+        resampled_data = [d[indices] for d in data]
+        
+        # Convert resampled data to contingency table
+        cases = np.column_stack(resampled_data)
+        table = gen_case_form_to_contingency(
+            cases, 
+            shape=shape,
+            axis_order=all_axes
+        )
+        
+        # Store table if requested
+        if store_tables and tables is not None:
+            tables[i] = table
+        
+        # Calculate CCRAM for this bootstrap sample
+        ccrvam = GenericCCRVAM.from_contingency_table(table)
+        value = ccrvam.calculate_CCRAM(predictors, response+1, scaled)
+        results.append(value)
+    
+    return np.array(results), tables, i_start
+
 def bootstrap_ccram(
     contingency_table: np.ndarray,
     predictors: Union[List[int], int],
@@ -107,7 +141,8 @@ def bootstrap_ccram(
     confidence_level: float = 0.95,
     method: str = 'percentile',
     random_state: Optional[int] = None,
-    store_tables: bool = False
+    store_tables: bool = False,
+    parallel: bool = False
 ) -> CustomBootstrapResult:
     """
     Perform bootstrap simulation and confidence intervals for (S)CCRAM.
@@ -123,6 +158,7 @@ def bootstrap_ccram(
     - `method` : Bootstrap CI method ('percentile', 'basic', 'BCa'); (default='percentile')
     - `random_state` : Random state for reproducibility (optional)
     - `store_tables` : Whether to store the bootstrapped contingency tables (default=False)
+    - `parallel` : Whether to use parallel processing (default=False)
         
     Outputs
     -------
@@ -161,15 +197,12 @@ def bootstrap_ccram(
     # Get all required axes in sorted order
     all_axes = sorted(parsed_predictors + [parsed_response])
     
-    # Create full axis order including unused axes
-    # full_axis_order = all_axes + [i for i in range(ndim) if i not in all_axes]
-    
     # Convert to case form using complete axis order
     cases = gen_contingency_to_case_form(contingency_table)
     
     # Store bootstrap tables if requested
     bootstrap_tables = None
-    if store_tables:
+    if store_tables and not parallel:
         bootstrap_tables = np.zeros((n_resamples,) + contingency_table.shape)
     
     # Split variables based on position in all_axes
@@ -218,28 +251,108 @@ def bootstrap_ccram(
             ccrvam = GenericCCRVAM.from_contingency_table(table)
             return ccrvam.calculate_CCRAM(predictors, response, scaled)
 
-    res = bootstrap(
-        data,
-        ccram_stat,
-        n_resamples=n_resamples,
-        confidence_level=confidence_level,
-        method=method,
-        random_state=random_state,
-        paired=True,
-        vectorized=True
-    )
+    # Set random seed
+    rng = np.random.RandomState(random_state)
     
-    # Check if bootstrap_distribution attribute exists (for compatibility with older scipy versions)
-    bootstrap_distribution_values = getattr(res, 'bootstrap_distribution', None)
-    if bootstrap_distribution_values is None:
-        print(f"Warning: Bootstrap distribution data not available from scipy.stats.bootstrap result for {metric_name}. Plotting will be disabled.")
+    # Generate all bootstrap samples indices at once
+    n_samples = len(cases)
+    all_bootstrap_indices = [
+        rng.choice(n_samples, size=n_samples, replace=True)
+        for _ in range(n_resamples)
+    ]
+
+    if parallel:
+        # Determine number of cores to use
+        n_jobs = max(1, multiprocessing.cpu_count() - 1)
+        print(f"Using {n_jobs} cores for parallel bootstrap processing")
+        batch_size = max(1, n_resamples // n_jobs)
+        
+        bootstrap_distribution_values = np.zeros(n_resamples)
+        
+        if store_tables:
+            all_bootstrap_tables = np.zeros((n_resamples,) + contingency_table.shape)
+        
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            # Prepare batches for parallel processing
+            batches = []
+            for i in range(0, n_resamples, batch_size):
+                end_idx = min(i + batch_size, n_resamples)
+                batch_indices = all_bootstrap_indices[i:end_idx]
+                batches.append((
+                    batch_indices, 
+                    data, 
+                    contingency_table.shape, 
+                    all_axes, 
+                    parsed_predictors,
+                    parsed_response,
+                    predictors,
+                    scaled,
+                    store_tables, 
+                    i
+                ))
+            
+            # Process batches in parallel
+            futures = [executor.submit(_process_bootstrap_batch, batch) for batch in batches]
+            
+            for future in as_completed(futures):
+                results, tables, i_start = future.result()
+                batch_size = len(results)
+                bootstrap_distribution_values[i_start:i_start+batch_size] = results
+                
+                if store_tables and tables is not None:
+                    all_bootstrap_tables[i_start:i_start+batch_size] = tables
+        
+        if store_tables:
+            bootstrap_tables = all_bootstrap_tables
+    else:
+        # Sequential processing
+        res = bootstrap(
+            data,
+            ccram_stat,
+            n_resamples=n_resamples,
+            confidence_level=confidence_level,
+            method=method,
+            random_state=random_state,
+            paired=True,
+            vectorized=True
+        )
+        
+        # Check if bootstrap_distribution attribute exists (for compatibility with older scipy versions)
+        bootstrap_distribution_values = getattr(res, 'bootstrap_distribution', None)
+        if bootstrap_distribution_values is None:
+            print(f"Warning: Bootstrap distribution data not available from scipy.stats.bootstrap result for {metric_name}. Plotting will be disabled.")
+        
+        # For sequential processing, ci and standard_error come from scipy.stats.bootstrap
+        ci = res.confidence_interval
+        standard_error = res.standard_error
+    
+    # For parallel processing, we need to calculate these ourselves
+    if parallel:
+        # Calculate confidence interval
+        alpha = (1 - confidence_level) / 2
+        if method.lower() == 'percentile':
+            ci_low = np.percentile(bootstrap_distribution_values, alpha * 100)
+            ci_high = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+        elif method.lower() == 'basic':
+            # Basic bootstrap interval (also called "reverse percentile")
+            ci_low = 2 * observed_ccram - np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+            ci_high = 2 * observed_ccram - np.percentile(bootstrap_distribution_values, alpha * 100)
+        elif method.lower() in ['bca', 'BCa']:
+            print("Warning: BCa method is not implemented for parallel processing yet. Using percentile method instead. If you want to use BCa, please set parallel=False for non-parallel processing.")
+            ci_low = np.percentile(bootstrap_distribution_values, alpha * 100)
+            ci_high = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+        else:
+            raise ValueError(f"Unknown confidence interval method: {method}")
+        
+        ci = ConfidenceInterval(low=ci_low, high=ci_high)
+        standard_error = np.std(bootstrap_distribution_values, ddof=1)
 
     result = CustomBootstrapResult(
         metric_name=metric_name,
         observed_value=observed_ccram,
-        confidence_interval=res.confidence_interval,
+        confidence_interval=ci,
         bootstrap_distribution=bootstrap_distribution_values,
-        standard_error=res.standard_error,
+        standard_error=standard_error,
         bootstrap_tables=bootstrap_tables
     )
     
@@ -835,6 +948,62 @@ class CustomPermutationResult:
             print(f"Warning: Could not create plot: {str(e)}")
             return None
 
+def _process_permutation_batch(args):
+    """Helper function for parallel permutation test processing."""
+    # batch_id, data, shape, all_axes, parsed_predictors, parsed_response, predictors, response, scaled, store_tables, batch_size, rng_seed = args
+    # New arguments:
+    batch_perm_indices, original_input_data, shape, all_axes, parsed_predictors, parsed_response, predictors, response_idx_1_based, scaled, store_tables, i_start = args
+    
+    # Initialize random state with a seed derived from batch_id - NO LONGER USED FOR PERMUTATIONS
+    # rng = np.random.RandomState(rng_seed + batch_id) 
+    
+    results = []
+    tables = None
+    # n_samples = original_input_data[0].shape[0] # Number of observations
+    num_perms_in_this_batch = len(batch_perm_indices) # This is the actual batch_size for this worker
+    num_data_arrays = len(original_input_data) # Number of arrays in the original_input_data tuple (e.g., sources + target)
+
+    if store_tables:
+        tables = np.zeros((num_perms_in_this_batch,) + shape)
+    
+    # Extract source and target data - NO, we permute all of original_input_data independently
+    # source_data = data[:-1]  # All predictor variables
+    # target_data = data[-1]   # Response variable
+    
+    for i in range(num_perms_in_this_batch):
+        current_resample_perm_indices_for_all_arrays = batch_perm_indices[i]
+        # current_resample_perm_indices_for_all_arrays has shape (num_data_arrays, n_observations)
+
+        permuted_data_components = []
+        for k in range(num_data_arrays):
+            component_k_data = original_input_data[k]
+            perm_indices_for_component_k = current_resample_perm_indices_for_all_arrays[k, :]
+            permuted_data_components.append(component_k_data[perm_indices_for_component_k])
+        
+        # permuted_data_for_stat is a tuple of permuted arrays, same structure as original_input_data
+        permuted_data_for_stat = tuple(permuted_data_components)
+
+        # Convert to case form
+        cases = np.column_stack(permuted_data_for_stat)
+        
+        # Convert to contingency table
+        table = gen_case_form_to_contingency(
+            cases, 
+            shape=shape,
+            axis_order=all_axes
+        )
+        
+        # Store table if requested
+        if store_tables and tables is not None:
+            tables[i] = table
+        
+        # Calculate CCRAM for this permutation
+        ccrvam = GenericCCRVAM.from_contingency_table(table)
+        value = ccrvam.calculate_CCRAM(predictors, response_idx_1_based, scaled)
+        results.append(value)
+    
+    return np.array(results), tables, i_start # i_start was passed in
+
 def permutation_test_ccram(
     contingency_table: np.ndarray,
     predictors: Union[List[int], int],
@@ -843,7 +1012,8 @@ def permutation_test_ccram(
     alternative: str = 'greater',
     n_resamples: int = 9999,
     random_state: Optional[int] = None,
-    store_tables: bool = False
+    store_tables: bool = False,
+    parallel: bool = False
 ) -> CustomPermutationResult:
     """
     Perform permutation simulation and test for (S)CCRAM.
@@ -858,6 +1028,7 @@ def permutation_test_ccram(
     - `n_resamples` : Number of permutations (default=9999)
     - `random_state` : Random state for reproducibility (optional)
     - `store_tables` : Whether to store the permuted contingency tables (default=False)
+    - `parallel` : Whether to use parallel processing (default=False)
         
     Outputs
     -------
@@ -893,15 +1064,16 @@ def permutation_test_ccram(
     # Get all required axes in sorted order
     all_axes = sorted(parsed_predictors + [parsed_response])
     
-    # Create full axis order including unused axes
-    # full_axis_order = all_axes + [i for i in range(ndim) if i not in all_axes]
-    
     # Convert to case form using complete axis order
     cases = gen_contingency_to_case_form(contingency_table)
     
-    # Store permutation tables if requested
+    # Calculate observed value
+    gen_ccrvam = GenericCCRVAM.from_contingency_table(contingency_table)
+    observed_ccram = gen_ccrvam.calculate_CCRAM(predictors, response, scaled)
+    
+    # Store permutation tables if requested (for sequential processing)
     permutation_tables = None
-    if store_tables:
+    if store_tables and not parallel:
         permutation_tables = np.zeros((n_resamples,) + contingency_table.shape)
     
     # Split variables based on position in all_axes
@@ -910,61 +1082,190 @@ def permutation_test_ccram(
     target_data = cases[:, axis_positions[parsed_response]]
     data = (*source_data, target_data)
 
-    def ccram_stat(*args, axis=0):
-        if args[0].ndim > 1:
-            batch_size = args[0].shape[0]
-            source_data = args[:-1]
-            target_data = args[-1]
+    # Set random seed
+    rng_seed = 42 if random_state is None else random_state
+    
+    if parallel:
+        # Determine number of cores to use
+        n_jobs = max(1, multiprocessing.cpu_count() - 1)
+        print(f"Using {n_jobs} cores for parallel permutation test processing")
+        # nominal_batch_size for splitting work, not for RNG anymore for permutations
+        # nominal_batch_size = max(1, n_resamples // n_jobs) 
+        
+        null_distribution = np.zeros(n_resamples)
+        
+        if store_tables:
+            all_permutation_tables = np.zeros((n_resamples,) + contingency_table.shape)
+
+        # Pre-generate all permutation indices using a single master RNG
+        master_rng = np.random.RandomState(rng_seed)
+        num_data_arrays = len(data)  # data is (*source_data, target_data)
+        n_obs = data[0].shape[0]
+        
+        # Generate random numbers for argsort, shape (n_resamples, num_data_arrays, n_obs)
+        # This mimics how permutation_test with permutation_type='pairings' might generate
+        # independent permutations for each data array for each resample.
+        random_draws_for_perms = master_rng.random(size=(n_resamples, num_data_arrays, n_obs))
+        all_perms_indices_master = np.argsort(random_draws_for_perms, axis=-1)
+
+        with ProcessPoolExecutor(max_workers=n_jobs) as executor:
+            batches = []
+            current_processed_offset = 0
             
-            cases = np.stack([
-                np.column_stack([source[i].reshape(-1, 1) for source in source_data] + 
-                              [target_data[i].reshape(-1, 1)])
-                for i in range(batch_size)
-            ])
+            # Split the work (and the pre-generated indices) into n_jobs chunks
+            # np.array_split handles uneven splits correctly
+            indices_chunks = np.array_split(all_perms_indices_master, n_jobs, axis=0)
+
+            for job_idx in range(n_jobs):
+                if job_idx < len(indices_chunks) and len(indices_chunks[job_idx]) > 0:
+                    batch_perm_indices_for_job = indices_chunks[job_idx]
+                    # this_actual_batch_size = len(batch_perm_indices_for_job) # Worker can get this from len(indices)
+
+                    batches.append((
+                        batch_perm_indices_for_job, # Pass the slice of pre-generated indices
+                        data,
+                        contingency_table.shape,
+                        all_axes,
+                        parsed_predictors,
+                        parsed_response,
+                        predictors,
+                        response,
+                        scaled,
+                        store_tables,
+                        current_processed_offset  # Pass the starting index for results placement
+                    ))
+                    current_processed_offset += len(batch_perm_indices_for_job)
+                else: # Should not happen if n_resamples > 0 and n_jobs > 0
+                    if n_resamples > 0: # Only break if there are genuinely no more tasks
+                        break
+            
+            futures = [executor.submit(_process_permutation_batch, batch) for batch in batches]
+            
+            total_processed = 0
+            for future in as_completed(futures):
+                results, tables, start_idx = future.result()
+                
+                # Handle potential size mismatch
+                result_size = len(results)
+                if start_idx + result_size > n_resamples:
+                    result_size = n_resamples - start_idx
+                    results = results[:result_size]
+                    if tables is not None:
+                        tables = tables[:result_size]
+                
+                null_distribution[start_idx:start_idx+result_size] = results
+                total_processed += result_size
+                
+                if store_tables and tables is not None:
+                    all_permutation_tables[start_idx:start_idx+result_size] = tables
+                    
+            if total_processed < n_resamples:
+                print(f"Warning: Only processed {total_processed} out of {n_resamples} requested permutations. P-value will be based on processed count.")
+                # Slice the null_distribution if not all resamples were processed
+                effective_null_distribution = null_distribution[:total_processed]
+                effective_n_resamples = total_processed
+            else:
+                effective_null_distribution = null_distribution
+                effective_n_resamples = n_resamples
+        
+        if store_tables:
+            permutation_tables = all_permutation_tables
+            
+        # Calculate p-value based on alternative hypothesis, mimicking SciPy's approach for randomized tests
+        if effective_n_resamples == 0:
+            p_value = np.nan # Or handle as an error / specific value like 1.0
         else:
-            cases = np.column_stack([arg.reshape(-1, 1) for arg in args])
+            # Adjustment for randomized test (Phipson, 2010)
+            # Assumed to be 1 because an exact test (adjustment=0) would mean n_resamples >= total possible permutations,
+            # which is complex to determine here and unlikely for typical n_resamples values.
+            adjustment = 1 
+
+            # Floating point comparison tolerance, as in scipy.stats.permutation_test
+            eps = (0 if not np.issubdtype(observed_ccram.dtype, np.inexact)
+                   else np.finfo(observed_ccram.dtype).eps * 100)
+            gamma = np.abs(eps * observed_ccram)
+
+            if alternative == 'greater':
+                count_extreme = np.sum(effective_null_distribution >= observed_ccram - gamma)
+                p_value = (count_extreme + adjustment) / (effective_n_resamples + adjustment)
+            elif alternative == 'less':
+                count_extreme = np.sum(effective_null_distribution <= observed_ccram + gamma)
+                p_value = (count_extreme + adjustment) / (effective_n_resamples + adjustment)
+            elif alternative == 'two-sided':
+                count_greater = np.sum(effective_null_distribution >= observed_ccram - gamma)
+                p_greater = (count_greater + adjustment) / (effective_n_resamples + adjustment)
+                
+                count_less = np.sum(effective_null_distribution <= observed_ccram + gamma)
+                p_less = (count_less + adjustment) / (effective_n_resamples + adjustment)
+                
+                p_value = 2.0 * np.minimum(p_greater, p_less)
+                p_value = min(p_value, 1.0)  # Ensure p-value doesn't exceed 1.0
+            else:
+                raise ValueError(f"Unknown alternative hypothesis type: {alternative}")
             
-        if cases.ndim == 3:
-            results = []
-            for i, batch_cases in enumerate(cases):
+            # Final clip to ensure p-value is within [0, 1]
+            p_value = np.clip(p_value, 0.0, 1.0)
+        
+    else:
+        # Sequential processing using scipy's permutation_test function
+        def ccram_stat(*args, axis=0):
+            if args[0].ndim > 1:
+                batch_size = args[0].shape[0]
+                source_data = args[:-1]
+                target_data = args[-1]
+                
+                cases = np.stack([
+                    np.column_stack([source[i].reshape(-1, 1) for source in source_data] + 
+                                  [target_data[i].reshape(-1, 1)])
+                    for i in range(batch_size)
+                ])
+            else:
+                cases = np.column_stack([arg.reshape(-1, 1) for arg in args])
+                
+            if cases.ndim == 3:
+                results = []
+                for i, batch_cases in enumerate(cases):
+                    table = gen_case_form_to_contingency(
+                        batch_cases, 
+                        shape=contingency_table.shape,
+                        axis_order=all_axes
+                    )
+                    
+                    # Store table if requested
+                    if store_tables and permutation_tables is not None and i < n_resamples:
+                        permutation_tables[i] = table
+                    
+                    ccrvam = GenericCCRVAM.from_contingency_table(table)
+                    value = ccrvam.calculate_CCRAM(predictors, response, scaled)
+                    results.append(value)
+                return np.array(results)
+            else:
                 table = gen_case_form_to_contingency(
-                    batch_cases, 
+                    cases,
                     shape=contingency_table.shape,
                     axis_order=all_axes
                 )
-                
-                # Store table if requested and not the observed table (first one)
-                if store_tables and permutation_tables is not None and i > 0 and i <= n_resamples:
-                    permutation_tables[i-1] = table
-                
                 ccrvam = GenericCCRVAM.from_contingency_table(table)
-                value = ccrvam.calculate_CCRAM(predictors, response, scaled)
-                results.append(value)
-            return np.array(results)
-        else:
-            table = gen_case_form_to_contingency(
-                cases,
-                shape=contingency_table.shape,
-                axis_order=all_axes
-            )
-            ccrvam = GenericCCRVAM.from_contingency_table(table)
-            return ccrvam.calculate_CCRAM(predictors, response, scaled)
-
-    perm = permutation_test(
-        data,
-        ccram_stat,
-        permutation_type='pairings',
-        alternative=alternative,
-        n_resamples=n_resamples,
-        random_state=random_state,
-        vectorized=True
-    )
+                return ccrvam.calculate_CCRAM(predictors, response, scaled)
+        
+        perm = permutation_test(
+            data,
+            ccram_stat,
+            permutation_type='pairings',
+            alternative=alternative,
+            n_resamples=n_resamples,
+            random_state=random_state,
+            vectorized=True
+        )
+        
+        null_distribution = perm.null_distribution
+        p_value = perm.pvalue
     
     result = CustomPermutationResult(
         metric_name=metric_name,
-        observed_value=perm.statistic,
-        p_value=perm.pvalue,
-        null_distribution=perm.null_distribution,
+        observed_value=observed_ccram,
+        p_value=p_value,
+        null_distribution=null_distribution,
         permutation_tables=permutation_tables
     )
     

@@ -152,7 +152,60 @@ def test_bootstrap_ccram_basic(contingency_table):
     assert hasattr(result, "histogram_fig")
     assert result.confidence_interval[0] < result.confidence_interval[1]
     assert result.standard_error >= 0
-
+    
+def test_bootstrap_ccram_parallel(contingency_table):
+    """Test bootstrap_ccram with parallel option."""
+    result = bootstrap_ccram(
+        contingency_table,
+        predictors=[1],
+        response=2,
+        n_resamples=999,
+        method='percentile',
+        parallel=True,
+        random_state=8990
+    )
+    
+    assert hasattr(result, "confidence_interval")
+    assert hasattr(result, "bootstrap_distribution")
+    assert hasattr(result, "standard_error")
+    assert hasattr(result, "histogram_fig")
+    assert result.confidence_interval[0] < result.confidence_interval[1]
+    assert result.standard_error >= 0
+    
+    result_basic = bootstrap_ccram(
+        contingency_table,
+        predictors=[1],
+        response=2,
+        n_resamples=999,
+        method='basic',
+        parallel=True,
+        random_state=8990
+    )
+    
+    assert hasattr(result_basic, "confidence_interval")
+    assert hasattr(result_basic, "bootstrap_distribution")
+    assert hasattr(result_basic, "standard_error")
+    assert hasattr(result_basic, "histogram_fig")
+    assert result_basic.confidence_interval[0] < result_basic.confidence_interval[1]
+    assert result_basic.standard_error >= 0
+    
+    result_bca = bootstrap_ccram(
+        contingency_table,
+        predictors=[1],
+        response=2,
+        n_resamples=999,
+        method='bca',
+        parallel=True,
+        random_state=8990
+    )
+    
+    assert hasattr(result_bca, "confidence_interval")
+    assert hasattr(result_bca, "bootstrap_distribution")
+    assert hasattr(result_bca, "standard_error")
+    assert hasattr(result_bca, "histogram_fig")
+    assert result_bca.confidence_interval[0] < result_bca.confidence_interval[1]
+    assert result_bca.standard_error >= 0
+    
 def test_bootstrap_ccram_multiple_axes(table_4d):
     """Test bootstrap_ccram with multiple conditioning axes."""
     result = bootstrap_ccram(
@@ -190,6 +243,23 @@ def test_bootstrap_ccram_multiple_axes(table_4d):
     assert "(X1) to X2" in result_2d_multi.metric_name
     assert hasattr(result_2d_multi, "confidence_interval")
     assert result_2d_multi.confidence_interval[0] < result_2d_multi.confidence_interval[1]
+
+def test_bootstrap_ccram_parallel_options(table_4d):
+    """Test bootstrap_ccram with parallel options."""
+    result = bootstrap_ccram(
+        table_4d,
+        predictors=[1, 4],
+        response=3,
+        n_resamples=999,
+        parallel=True,
+        random_state=8990
+    )
+    
+    assert hasattr(result, "confidence_interval")
+    assert hasattr(result, "bootstrap_distribution")
+    assert hasattr(result, "histogram_fig")
+    assert result.confidence_interval[0] < result.confidence_interval[1]
+    assert result.standard_error >= 0
 
 def test_prediction_summary_multi(table_4d):
     """Test multi-dimensional prediction summary."""
@@ -392,6 +462,47 @@ def test_permutation_test_alternatives(table_4d):
     )
     assert result_two_sided.p_value >= 0
     assert result_two_sided.p_value <= 1
+    
+def test_permutation_test_parallel_options(table_4d):
+    """Test permutation_test_ccram with parallel options."""
+    result = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='greater',
+        parallel=True,
+        n_resamples=999,
+        random_state=8990
+    )
+    assert hasattr(result, "p_value")
+    assert 0 <= result.p_value <= 1
+    assert len(result.null_distribution) == 999
+    
+    result_less = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='less',
+        parallel=True,
+        n_resamples=999,
+        random_state=8990
+    )
+    assert hasattr(result_less, "p_value")
+    assert 0 <= result_less.p_value <= 1
+    assert len(result_less.null_distribution) == 999
+    
+    result_two_sided = permutation_test_ccram(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        alternative='two-sided',
+        parallel=True,
+        n_resamples=999,
+        random_state=8990
+    )
+    assert hasattr(result_two_sided, "p_value")
+    assert 0 <= result_two_sided.p_value <= 1
+    assert len(result_two_sided.null_distribution) == 999
 
 def test_save_predictions(table_4d, tmp_path):
     """Test saving prediction results to different formats."""
