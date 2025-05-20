@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.stats import bootstrap, permutation_test
 from scipy.stats._common import ConfidenceInterval
+from scipy.special import ndtri, ndtr
 from dataclasses import dataclass
 from typing import Union, Tuple, List, Optional
 import itertools
@@ -333,18 +334,125 @@ def bootstrap_ccram(
         if method.lower() == 'percentile':
             ci_low = np.percentile(bootstrap_distribution_values, alpha * 100)
             ci_high = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+            ci = ConfidenceInterval(low=ci_low, high=ci_high)
         elif method.lower() == 'basic':
             # Basic bootstrap interval (also called "reverse percentile")
             ci_low = 2 * observed_ccram - np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
             ci_high = 2 * observed_ccram - np.percentile(bootstrap_distribution_values, alpha * 100)
-        elif method.lower() in ['bca', 'BCa']:
-            print("Warning: BCa method is not implemented for parallel processing yet. Using percentile method instead. If you want to use BCa, please set parallel=False for non-parallel processing.")
-            ci_low = np.percentile(bootstrap_distribution_values, alpha * 100)
-            ci_high = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+            ci = ConfidenceInterval(low=ci_low, high=ci_high)
+        elif method.lower() == 'bca':
+            # BCa method for parallel processing
+            # Based on scipy.stats._resampling._bca_interval and Efron & Tibshirani (1993)
+            
+            # Calculate z0_hat (bias-correction factor)
+            # Similar to _percentile_of_score(bootstrap_distribution_values, observed_ccram)
+            n_bootstrap_samples = len(bootstrap_distribution_values)
+            if n_bootstrap_samples == 0:
+                warnings.warn("BCa interval calculation failed: bootstrap distribution is empty.", RuntimeWarning)
+                ci = ConfidenceInterval(low=np.nan, high=np.nan)
+            else:
+                proportion_less = np.sum(bootstrap_distribution_values < observed_ccram) / n_bootstrap_samples
+                proportion_equal = np.sum(bootstrap_distribution_values == observed_ccram) / n_bootstrap_samples
+                p_z0 = proportion_less + proportion_equal / 2.0
+
+                if p_z0 == 0 or p_z0 == 1:
+                    warnings.warn(
+                        "BCa calculation failed: All bootstrap values are on one side of the observed value. "
+                        "This can happen with degenerate distributions.", RuntimeWarning
+                    )
+                    z0_hat = np.inf if p_z0 == 1 else -np.inf 
+                    # Fallback to percentile if z0_hat is inf, or ensure NaNs propagate
+                    if not np.isfinite(z0_hat):
+                         ci_low_bca = np.percentile(bootstrap_distribution_values, alpha * 100)
+                         ci_high_bca = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+                         ci = ConfidenceInterval(low=ci_low_bca, high=ci_high_bca)
+                         # Skip further BCa calculations if z0_hat is problematic
+                         standard_error = np.std(bootstrap_distribution_values, ddof=1) # Ensure standard_error is set
+                         result = CustomBootstrapResult(
+                             metric_name=metric_name,
+                             observed_value=observed_ccram,
+                             confidence_interval=ci,
+                             bootstrap_distribution=bootstrap_distribution_values,
+                             standard_error=standard_error,
+                             bootstrap_tables=bootstrap_tables
+                         )
+                         result.plot_distribution(f'Bootstrap Distribution (BCa fallback to percentile): {metric_name}')
+                         return result # Exit early
+                else:
+                    z0_hat = ndtri(p_z0)
+
+                # Calculate a_hat (acceleration factor)
+                # Jackknife resampling of indices (since data is effectively paired)
+                N_cases = cases.shape[0] # Number of original observations
+                jackknife_stats = np.zeros(N_cases)
+                original_data_columns = data # This is (*source_data, target_data)
+
+                for k_leave_out in range(N_cases):
+                    jk_indices = np.delete(np.arange(N_cases), k_leave_out)
+                    # Resample each column in original_data_columns using jk_indices
+                    jackknifed_data_for_stat = [col[jk_indices] for col in original_data_columns]
+                    jackknife_stats[k_leave_out] = ccram_stat(*jackknifed_data_for_stat)
+                
+                mean_jackknife_stats = np.mean(jackknife_stats)
+                diff_jackknife = mean_jackknife_stats - jackknife_stats
+                sum_diff_cubed = np.sum(diff_jackknife**3)
+                sum_diff_squared = np.sum(diff_jackknife**2)
+
+                if sum_diff_squared == 0:
+                    warnings.warn("BCa calculation failed: Jackknife variance is zero. Fallback to percentile.", RuntimeWarning)
+                    a_hat = 0.0 # Or np.nan, leading to percentile-like or nan CI
+                    # Fallback to percentile if a_hat is problematic
+                    ci_low_bca = np.percentile(bootstrap_distribution_values, alpha * 100)
+                    ci_high_bca = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+                    ci = ConfidenceInterval(low=ci_low_bca, high=ci_high_bca)
+                    standard_error = np.std(bootstrap_distribution_values, ddof=1)
+                    result = CustomBootstrapResult(
+                        metric_name=metric_name,
+                        observed_value=observed_ccram,
+                        confidence_interval=ci,
+                        bootstrap_distribution=bootstrap_distribution_values,
+                        standard_error=standard_error,
+                        bootstrap_tables=bootstrap_tables
+                    )
+                    result.plot_distribution(f'Bootstrap Distribution (BCa fallback to percentile for a_hat): {metric_name}')
+                    return result # Exit early
+                else:
+                    a_hat = sum_diff_cubed / (6 * (sum_diff_squared**1.5))
+
+                # Calculate BCa confidence interval limits
+                z_alpha1 = ndtri(alpha)          # For lower bound
+                z_alpha2 = ndtri(1 - alpha)      # For upper bound
+                
+                # Numerators for the ndtr argument
+                num1 = z0_hat + z_alpha1
+                num2 = z0_hat + z_alpha2
+                
+                # Denominators
+                den1 = 1 - a_hat * num1
+                den2 = 1 - a_hat * num2
+
+                if den1 == 0 or den2 == 0 or not np.isfinite(a_hat) or not np.isfinite(z0_hat):
+                    warnings.warn("BCa calculation failed due to division by zero or non-finite z0/a_hat. Fallback to percentile.", RuntimeWarning)
+                    ci_low_bca = np.percentile(bootstrap_distribution_values, alpha * 100)
+                    ci_high_bca = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+                else:
+                    percentile_alpha1 = ndtr(z0_hat + num1 / den1) * 100
+                    percentile_alpha2 = ndtr(z0_hat + num2 / den2) * 100
+
+                    # Handle potential NaN/inf from calculations if percentiles are extreme
+                    if not (np.isfinite(percentile_alpha1) and np.isfinite(percentile_alpha2)):
+                        warnings.warn("BCa percentiles are non-finite. Fallback to percentile method.", RuntimeWarning)
+                        ci_low_bca = np.percentile(bootstrap_distribution_values, alpha * 100)
+                        ci_high_bca = np.percentile(bootstrap_distribution_values, (1 - alpha) * 100)
+                    else: 
+                        ci_low_bca = np.percentile(bootstrap_distribution_values, percentile_alpha1)
+                        ci_high_bca = np.percentile(bootstrap_distribution_values, percentile_alpha2)
+                
+                ci = ConfidenceInterval(low=ci_low_bca, high=ci_high_bca)
+
         else:
             raise ValueError(f"Unknown confidence interval method: {method}")
         
-        ci = ConfidenceInterval(low=ci_low, high=ci_high)
         standard_error = np.std(bootstrap_distribution_values, ddof=1)
 
     result = CustomBootstrapResult(
@@ -1083,7 +1191,7 @@ def permutation_test_ccram(
     data = (*source_data, target_data)
 
     # Set random seed
-    rng_seed = 42 if random_state is None else random_state
+    rng_seed = random_state
     
     if parallel:
         # Determine number of cores to use
