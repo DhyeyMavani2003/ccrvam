@@ -328,6 +328,30 @@ def test_load_data_from_file(tmp_path, sample_category_map, sample_var_list):
     assert isinstance(result, np.ndarray)
     assert result.shape == (2, 3, 2, 6)
 
+def test_load_data_from_file_freq_form(tmp_path, sample_category_map, sample_var_list):
+    """Test loading data from file in frequency form."""
+    # Create temp file
+    file_path = tmp_path / "test_data.csv"
+    df = pd.DataFrame({
+        'x1': [1, 2],
+        'x2': [2, 1],
+        'x3': [1, 2],
+        'pain': ['marked.improvement', 'moderate.improvement'],
+        'Freq': [1, 1]
+    })
+    df.to_csv(file_path, index=False)
+    
+    result = DataProcessor.load_data(
+        str(file_path),
+        data_form="frequency_form",
+        dimension=(2, 3, 2, 6),
+        var_list=sample_var_list,
+        category_map=sample_category_map,
+        named=True
+    )
+    assert isinstance(result, np.ndarray)
+    assert result.shape == (2, 3, 2, 6)
+
 def test_invalid_data_form():
     """Test invalid data form raises error."""
     with pytest.raises(ValueError):
@@ -351,10 +375,11 @@ def test_invalid_category_mapping(sample_var_list):
     df = pd.DataFrame({
         'x1': [1, 2],
         'x2': [2, 1],
+        'x3': [1, 2],
         'pain': ['invalid', 'category']
     })
     
-    with pytest.raises(IndexError):
+    with pytest.raises(ValueError, match="Could not convert categories to numeric"):
         DataProcessor.load_data(
             df,
             data_form="case_form",
@@ -493,3 +518,22 @@ def test_load_arthritis_data():
     # Check other values identified in debug output
     assert Arthritis[1, 1, 3, 0] == 4
     assert Arthritis[2, 1, 3, 0] == 4
+
+def test_frequency_form_duplicate_indices():
+    """Test frequency form processing with duplicate indices."""
+    # Test data with duplicate indices
+    data = np.array([
+        [1, 1, 1, 1, 2],  # First row with freq 2
+        [1, 1, 1, 1, 3],  # Same indices with freq 3
+        [2, 1, 1, 1, 1]   # Different indices with freq 1
+    ])
+    
+    result = DataProcessor.load_data(
+        data,
+        data_form="frequency_form",
+        dimension=(2, 2, 2, 2)
+    )
+    
+    # Check the accumulated frequency
+    assert result[0, 0, 0, 0] == 5  # Should be 2 + 3
+    assert result[1, 0, 0, 0] == 1  # Should be 1

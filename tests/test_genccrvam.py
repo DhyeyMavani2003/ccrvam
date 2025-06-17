@@ -664,7 +664,7 @@ def test_heatmap_content(table_4d):
     plt.close('all')
     
 def test_Arthritis_data_ccram():
-    var_list_4d = ["Improved", "Treatment", "Age", "Sex"]
+    var_list_4d = ["Improved", "Sex", "Treatment", "Age"]
     category_map_4d = {
         "Improved": {
             "None": 1,
@@ -680,7 +680,7 @@ def test_Arthritis_data_ccram():
             "Male": 2
         },
     }
-    data_dimension = (3,2,4,2)
+    data_dimension = (3,2,2,4)
 
     Arthritis = DataProcessor.load_data(
                             "./tests/data/Arthritis_freq.txt",
@@ -691,9 +691,9 @@ def test_Arthritis_data_ccram():
                             named=True,
                             delimiter="\t"
                         )
-    
+    print(Arthritis)
     ccrvam = GenericCCRVAM.from_contingency_table(Arthritis)
     ccram = ccrvam.calculate_CCRAM([1,2,3], 4)
-    assert np.isclose(ccram, 0.0982993197278911)
+    assert np.isclose(ccram, 0.14195603818117533)
     
     

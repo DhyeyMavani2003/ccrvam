@@ -58,19 +58,40 @@ class DataProcessor:
                 raise FileNotFoundError(f"Data file not found: {data}")
             
             if named:
-                # Read with pandas to handle headers
-                df = pd.read_csv(data_path, delimiter=delimiter)
+                # Read with pandas, keeping None as string
+                df = pd.read_csv(data_path, delimiter=delimiter, skipinitialspace=True, na_filter=False)
+                # Clean up column names by stripping whitespace
+                df.columns = df.columns.str.strip()
+                
                 if var_list is None:
                     var_list = list(df.columns)
+                else:
+                    # For frequency_form, reorder columns to match var_list + ['Freq']
+                    # For case_form, just reorder to match var_list
+                    if data_form == "frequency_form":
+                        df = df[var_list + ['Freq']]
+                    else:
+                        df = df[var_list]
                 data = df.to_numpy()
             else:
                 # Read raw data
                 data = np.loadtxt(data_path, delimiter=delimiter, skiprows=1 if named else 0)
                 
         elif isinstance(data, pd.DataFrame):
+            # Clean up column names by stripping whitespace
+            df = data.copy()
+            df.columns = df.columns.str.strip()
+            
             if var_list is None and named:
-                var_list = list(data.columns)
-            data = data.to_numpy()
+                var_list = list(df.columns)
+            else:
+                # For frequency_form, reorder columns to match var_list + ['Freq']
+                # For case_form, just reorder to match var_list
+                if data_form == "frequency_form":
+                    df = df[var_list + ['Freq']]
+                else:
+                    df = df[var_list]
+            data = df.to_numpy()
 
         # Convert string categories to numeric if needed
         if category_map is not None:
@@ -118,7 +139,7 @@ class DataProcessor:
                 var = var_list[i] if var_list else str(i)
                 if var in category_map:
                     try:
-                        result[:, i] = [_map_category(x, category_map[var]) for x in data[:, i]]
+                        result[:, i] = [_map_category(str(x).strip(), category_map[var]) for x in data[:, i]]
                     except (ValueError, TypeError) as e:
                         raise ValueError(f"Error converting categories for variable '{var}': {e}")
         
@@ -134,28 +155,6 @@ class DataProcessor:
             raise e
             
         return result
-
-    @staticmethod
-    def _process_case_form(data: np.ndarray, shape: tuple) -> np.ndarray:
-        """Internal helper to convert case form data to contingency table."""
-        if data.ndim != 2:
-            raise ValueError("Case form data must be 2D array")
-            
-        if data.shape[1] != len(shape):
-            raise ValueError("Number of variables doesn't match shape")
-            
-        # Adjust for 0-based indexing
-        data = data - 1
-            
-        # Initialize contingency table
-        table = np.zeros(shape, dtype=int)
-        
-        # Count occurrences
-        for case in data:
-            idx = tuple(int(i) for i in case)
-            table[idx] += 1
-            
-        return table
 
     @staticmethod 
     def _process_frequency_form(data: np.ndarray, shape: tuple) -> np.ndarray:
@@ -179,7 +178,29 @@ class DataProcessor:
             if np.isnan(case).any() or np.isnan(freq):
                 continue
             idx = tuple(int(i) for i in case)
-            table[idx] = int(freq)
+            table[idx] += int(freq)  # Changed from = to += to accumulate frequencies
+            
+        return table
+
+    @staticmethod
+    def _process_case_form(data: np.ndarray, shape: tuple) -> np.ndarray:
+        """Internal helper to convert case form data to contingency table."""
+        if data.ndim != 2:
+            raise ValueError("Case form data must be 2D array")
+            
+        if data.shape[1] != len(shape):
+            raise ValueError("Number of variables doesn't match shape")
+            
+        # Adjust for 0-based indexing
+        data = data - 1
+            
+        # Initialize contingency table
+        table = np.zeros(shape, dtype=int)
+        
+        # Count occurrences
+        for case in data:
+            idx = tuple(int(i) for i in case)
+            table[idx] += 1
             
         return table
 
