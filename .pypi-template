@@ -5,7 +5,7 @@ first_year_of_publication: '2025'
 github_account: DhyeyMavani2003
 github_repo_name: ccrvam
 keywords_describing_the_package: ccrvam
-license: MIT
+license: GPL-3
 package_module_name: ccrvam
 package_name: ccrvam
 package_tagline: Python implementation of Checkerboard Copula Regression-based Visualization

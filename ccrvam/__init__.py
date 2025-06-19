@@ -10,7 +10,7 @@ from ccrvam.checkerboard.genstatsim import (
     save_predictions,
 )
 
-__version__ = "1.1.8"
+__version__ = "1.1.9"
 __all__ = [
   "GenericCCRVAM",
   "DataProcessor",
