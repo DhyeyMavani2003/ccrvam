@@ -17,10 +17,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from itertools import combinations
-from typing import List, Tuple, Dict, Optional
+from typing import Dict, Tuple, Optional
 import time
 import warnings
-warnings.filterwarnings("ignore")
 
 # Import ccrvam functions - direct imports to avoid package initialization issues
 from ccrvam.checkerboard.genccrvam import GenericCCRVAM
@@ -29,6 +28,8 @@ from ccrvam.checkerboard.genstatsim import (
     permutation_test_ccram,
     bootstrap_predict_ccr_summary
 )
+
+warnings.filterwarnings("ignore")
 
 class CCRAMVariableSelector:
     """
@@ -102,7 +103,7 @@ class CCRAMVariableSelector:
         pd.DataFrame
             Results DataFrame with CCRAM values and statistics
         """
-        print(f"Performing all-possible-subset variable selection...")
+        print("Performing all-possible-subset variable selection...")
         print(f"Response variable: {self.variable_names[response_var]} (X{response_var})")
         
         # Get available predictor variables (exclude response)
@@ -206,7 +207,7 @@ class CCRAMVariableSelector:
         # Store results
         self.results['all_subsets'] = results_df
         
-        print(f"\nAll-possible-subset selection completed!")
+        print("\nAll-possible-subset selection completed!")
         print(f"Best combination: {results_df.iloc[0]['predictor_names']} (CCRAM = {results_df.iloc[0]['ccram_value']:.6f})")
         
         return results_df
@@ -252,7 +253,7 @@ class CCRAMVariableSelector:
         pd.DataFrame
             Results DataFrame with CCRAM values and statistics for k-predictor models
         """
-        print(f"Performing best-{k}-subset variable selection...")
+        print("Performing best-k-subset variable selection...")
         print(f"Response variable: {self.variable_names[response_var]} (X{response_var})")
         
         # Get available predictor variables (exclude response)
@@ -466,9 +467,9 @@ class CCRAMVariableSelector:
         top_n : int
             Number of top models to display
         """
-        print(f"\n{'='*60}")
-        print(f"VARIABLE SELECTION RESULTS SUMMARY")
-        print(f"{'='*60}")
+        print("\n" + "="*60)
+        print("VARIABLE SELECTION RESULTS SUMMARY")
+        print("="*60)
         
         print(f"\nTotal models evaluated: {len(results_df)}")
         print(f"Best CCRAM value: {results_df.iloc[0]['ccram_value']:.6f}")
@@ -476,12 +477,12 @@ class CCRAMVariableSelector:
         
         if 'n_predictors' in results_df.columns:
             pred_counts = results_df['n_predictors'].value_counts().sort_index()
-            print(f"\nModels by number of predictors:")
+            print("\nModels by number of predictors:")
             for n_pred, count in pred_counts.items():
                 print(f"  {n_pred} predictors: {count} models")
         
         print(f"\nTop {top_n} models:")
-        print(f"{'-'*60}")
+        print("-"*60)
         
         for i in range(min(top_n, len(results_df))):
             row = results_df.iloc[i]
@@ -497,7 +498,7 @@ class CCRAMVariableSelector:
             
             print()
         
-        print(f"{'='*60}")
+        print("="*60)
 
 
 def create_example_data() -> Tuple[np.ndarray, Dict[int, str]]:
@@ -513,18 +514,46 @@ def create_example_data() -> Tuple[np.ndarray, Dict[int, str]]:
     table = np.zeros((2, 3, 2, 6), dtype=int)
     
     # Fill with example data (from test fixtures)
-    table[0,0,0,1] = 1; table[0,0,0,4] = 2; table[0,0,0,5] = 4
-    table[0,0,1,3] = 1; table[0,0,1,4] = 3
-    table[0,1,0,1] = 2; table[0,1,0,2] = 3; table[0,1,0,4] = 6; table[0,1,0,5] = 4
-    table[0,1,1,1] = 1; table[0,1,1,3] = 2; table[0,1,1,5] = 1
-    table[0,2,0,4] = 2; table[0,2,0,5] = 2
-    table[0,2,1,2] = 1; table[0,2,1,3] = 1; table[0,2,1,4] = 3
-    table[1,0,0,2] = 3; table[1,0,0,4] = 1; table[1,0,0,5] = 2
-    table[1,0,1,1] = 1; table[1,0,1,4] = 3
-    table[1,1,0,1] = 3; table[1,1,0,2] = 4; table[1,1,0,3] = 5; table[1,1,0,4] = 6; table[1,1,0,5] = 2
-    table[1,1,1,0] = 1; table[1,1,1,1] = 4; table[1,1,1,2] = 4; table[1,1,1,3] = 3; table[1,1,1,5] = 1
-    table[1,2,0,0] = 2; table[1,2,0,1] = 2; table[1,2,0,2] = 1; table[1,2,0,3] = 5; table[1,2,0,4] = 2
-    table[1,2,1,0] = 2; table[1,2,1,2] = 2; table[1,2,1,3] = 3
+    table[0, 0, 0, 1] = 1
+    table[0, 0, 0, 4] = 2
+    table[0, 0, 0, 5] = 4
+    table[0, 0, 1, 3] = 1
+    table[0, 0, 1, 4] = 3
+    table[0, 1, 0, 1] = 2
+    table[0, 1, 0, 2] = 3
+    table[0, 1, 0, 4] = 6
+    table[0, 1, 0, 5] = 4
+    table[0, 1, 1, 1] = 1
+    table[0, 1, 1, 3] = 2
+    table[0, 1, 1, 5] = 1
+    table[0, 2, 0, 4] = 2
+    table[0, 2, 0, 5] = 2
+    table[0, 2, 1, 2] = 1
+    table[0, 2, 1, 3] = 1
+    table[0, 2, 1, 4] = 3
+    table[1, 0, 0, 2] = 3
+    table[1, 0, 0, 4] = 1
+    table[1, 0, 0, 5] = 2
+    table[1, 0, 1, 1] = 1
+    table[1, 0, 1, 4] = 3
+    table[1, 1, 0, 1] = 3
+    table[1, 1, 0, 2] = 4
+    table[1, 1, 0, 3] = 5
+    table[1, 1, 0, 4] = 6
+    table[1, 1, 0, 5] = 2
+    table[1, 1, 1, 0] = 1
+    table[1, 1, 1, 1] = 4
+    table[1, 1, 1, 2] = 4
+    table[1, 1, 1, 3] = 3
+    table[1, 1, 1, 5] = 1
+    table[1, 2, 0, 0] = 2
+    table[1, 2, 0, 1] = 2
+    table[1, 2, 0, 2] = 1
+    table[1, 2, 0, 3] = 5
+    table[1, 2, 0, 4] = 2
+    table[1, 2, 1, 0] = 2
+    table[1, 2, 1, 2] = 2
+    table[1, 2, 1, 3] = 3
     
     variable_names = {
         1: "Pelvic_Incidence",
