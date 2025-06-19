@@ -695,5 +695,182 @@ def test_Arthritis_data_ccram():
     ccrvam = GenericCCRVAM.from_contingency_table(Arthritis)
     ccram = ccrvam.calculate_CCRAM([1,2,3], 4)
     assert np.isclose(ccram, 0.14195603818117533)
+
+# New tests for plotting customization options
+def test_plot_ccr_predictions_font_customization(table_4d):
+    """Test font size customization in CCR prediction plots."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    # Test all font size parameters
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        title_fontsize=16,
+        xlabel_fontsize=14,
+        ylabel_fontsize=12,
+        tick_fontsize=10,
+        text_fontsize=8
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+def test_plot_ccr_predictions_category_letters(table_4d):
+    """Test category letters option in CCR prediction plots."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    var_names = {1: "Var1", 2: "Var2", 4: "Response"}
+    
+    # Test with category letters enabled
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        variable_names=var_names,
+        use_category_letters=True
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+    
+    # Test with category letters disabled (default)
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        variable_names=var_names,
+        use_category_letters=False
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+def test_plot_ccr_predictions_kwargs(table_4d):
+    """Test **kwargs functionality in CCR prediction plots."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    # Test with matplotlib kwargs
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        facecolor='lightgray',
+        edgecolor='black',
+        alpha=0.8
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+def test_plot_ccr_predictions_combined_options(table_4d):
+    """Test combination of all new plotting options."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    var_names = {1: "Length", 2: "Pain", 4: "Outcome"}
+    
+    # Test all options together
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        variable_names=var_names,
+        figsize=(12, 10),
+        title_fontsize=18,
+        xlabel_fontsize=14,
+        ylabel_fontsize=14,
+        tick_fontsize=12,
+        text_fontsize=10,
+        use_category_letters=True,
+        legend_style='xaxis',
+        show_indep_line=True,
+        facecolor='white',
+        edgecolor='gray'
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+def test_plot_ccr_predictions_edge_cases(table_4d):
+    """Test edge cases for plotting customization."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    # Test with None values (should use defaults)
+    ccrvam.plot_ccr_predictions(
+        predictors=[1],
+        response=4,
+        title_fontsize=None,
+        xlabel_fontsize=None,
+        ylabel_fontsize=None,
+        tick_fontsize=None,
+        text_fontsize=None
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+    
+    # Test with very large category numbers (should use Cat format)
+    large_table = np.zeros((30, 2), dtype=int)
+    large_table[0, 0] = 10
+    large_table[29, 1] = 10
+    ccrvam_large = GenericCCRVAM.from_contingency_table(large_table)
+    
+    ccrvam_large.plot_ccr_predictions(
+        predictors=[1],
+        response=2,
+        use_category_letters=True
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+def test_plot_ccr_predictions_save_with_customization(table_4d):
+    """Test saving plots with customization options."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        save_path = os.path.join(tmpdirname, 'custom_plot.png')
+        
+        ccrvam.plot_ccr_predictions(
+            predictors=[1, 2, 3],
+            response=4,
+            figsize=(15, 12),
+            title_fontsize=20,
+            xlabel_fontsize=16,
+            ylabel_fontsize=16,
+            tick_fontsize=14,
+            text_fontsize=12,
+            use_category_letters=True,
+            save_path=save_path,
+            dpi=150
+        )
+        
+        # Verify file was saved
+        assert os.path.exists(save_path)
+        
+        # Check for legend file if many combinations
+        legend_path = save_path.rsplit('.', 1)[0] + '_legend.png'
+        if os.path.exists(legend_path):
+            assert os.path.exists(legend_path)
+    
+    plt.close('all')
+
+def test_plot_ccr_predictions_backward_compatibility(table_4d):
+    """Test that existing functionality still works without new parameters."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_4d)
+    
+    # Test old-style calls without new parameters
+    ccrvam.plot_ccr_predictions([1, 2], 4)
+    assert plt.get_fignums()
+    plt.close('all')
+    
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=4,
+        legend_style='side',
+        show_indep_line=False
+    )
+    assert plt.get_fignums()
+    plt.close('all')
     
     

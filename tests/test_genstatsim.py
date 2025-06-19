@@ -749,3 +749,407 @@ def test_bootstrap_predict_ccr_summary_parallel_edge_cases(table_4d):
         check_exact=False,
         rtol=0.1
     )
+
+# New tests for plotting customization options
+
+def test_bootstrap_result_plot_customization():
+    """Test font size and figure customization in bootstrap result plots."""
+    result = CustomBootstrapResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=np.random.normal(0.5, 0.1, 1000),
+        standard_error=0.1
+    )
+    
+    # Test all customization options
+    fig = result.plot_distribution(
+        title="Custom Bootstrap Distribution",
+        figsize=(12, 8),
+        title_fontsize=16,
+        xlabel_fontsize=14,
+        ylabel_fontsize=12,
+        tick_fontsize=10,
+        text_fontsize=8
+    )
+    
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    assert fig.get_size_inches()[0] == 12
+    assert fig.get_size_inches()[1] == 8
+    plt.close(fig)
+
+def test_bootstrap_result_plot_kwargs():
+    """Test **kwargs functionality in bootstrap result plots."""
+    result = CustomBootstrapResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=np.random.normal(0.5, 0.1, 1000),
+        standard_error=0.1
+    )
+    
+    # Test with matplotlib kwargs
+    fig = result.plot_distribution(
+        facecolor='lightgray',
+        edgecolor='black',
+        alpha=0.9
+    )
+    
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_bootstrap_result_plot_degenerate_with_customization():
+    """Test degenerate case with text font customization."""
+    result = CustomBootstrapResult(
+        metric_name="Degenerate CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.5, 0.5),
+        bootstrap_distribution=np.array([0.5] * 1000),
+        standard_error=0.0
+    )
+    
+    # Test degenerate case with custom text font size
+    fig = result.plot_distribution(
+        title="Degenerate Distribution",
+        figsize=(10, 6),
+        title_fontsize=18,
+        text_fontsize=12
+    )
+    
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_permutation_result_plot_customization():
+    """Test font size and figure customization in permutation result plots."""
+    result = CustomPermutationResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.random.normal(0.3, 0.1, 1000)
+    )
+    
+    # Test all customization options (no text_fontsize for permutation plots)
+    fig = result.plot_distribution(
+        title="Custom Null Distribution",
+        figsize=(14, 10),
+        title_fontsize=20,
+        xlabel_fontsize=16,
+        ylabel_fontsize=14,
+        tick_fontsize=12
+    )
+    
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    assert fig.get_size_inches()[0] == 14
+    assert fig.get_size_inches()[1] == 10
+    plt.close(fig)
+
+def test_permutation_result_plot_kwargs():
+    """Test **kwargs functionality in permutation result plots."""
+    result = CustomPermutationResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.random.normal(0.3, 0.1, 1000)
+    )
+    
+    # Test with matplotlib kwargs
+    fig = result.plot_distribution(
+        facecolor='white',
+        edgecolor='gray',
+        linewidth=2
+    )
+    
+    assert fig is not None
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_prediction_summary_plot_customization_heatmap(table_4d):
+    """Test heatmap plotting with all customization options."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["X1", "X2"],
+        response=4,
+        response_name="Response",
+        n_resamples=100,
+        random_state=8990
+    )
+    
+    # Test heatmap with all customization options
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='heatmap',
+        figsize=(16, 12),
+        title_fontsize=18,
+        xlabel_fontsize=14,
+        ylabel_fontsize=14,
+        tick_fontsize=12,
+        text_fontsize=10,
+        use_category_letters=False,
+        show_values=True,
+        show_indep_line=True,
+        cmap='Blues'
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(ax, plt.Axes)
+    assert fig.get_size_inches()[0] == 16
+    assert fig.get_size_inches()[1] == 12
+    plt.close(fig)
+
+def test_prediction_summary_plot_customization_bubble(table_4d):
+    """Test bubble plotting with all customization options."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["Var1", "Var2"],
+        response=4,
+        response_name="Target",
+        n_resamples=100,
+        random_state=8990
+    )
+    
+    # Test bubble plot with all customization options
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='bubble',
+        figsize=(14, 10),
+        title_fontsize=16,
+        xlabel_fontsize=12,
+        ylabel_fontsize=12,
+        tick_fontsize=10,
+        text_fontsize=8,
+        use_category_letters=True,
+        show_values=False,
+        show_indep_line=False,
+        cmap='Reds'
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(ax, plt.Axes)
+    plt.close(fig)
+
+def test_prediction_summary_plot_category_letters(table_4d):
+    """Test category letters functionality in prediction summary plots."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        predictors_names=["First", "Second"],
+        response=4,
+        response_name="Fourth",
+        n_resamples=100,
+        random_state=8990
+    )
+    
+    # Test with category letters enabled
+    fig, ax = summary_df.plot_predictions_summary(
+        use_category_letters=True,
+        plot_type='heatmap'
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+    
+    # Test with category letters enabled for bubble plot
+    fig, ax = summary_df.plot_predictions_summary(
+        use_category_letters=True,
+        plot_type='bubble'
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_prediction_summary_plot_kwargs(table_4d):
+    """Test **kwargs functionality in prediction summary plots."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=100,
+        random_state=8990
+    )
+    
+    # Test with matplotlib kwargs
+    fig, ax = summary_df.plot_predictions_summary(
+        facecolor='lightblue',
+        edgecolor='navy',
+        alpha=0.8
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    assert isinstance(ax, plt.Axes)
+    plt.close(fig)
+
+def test_prediction_summary_plot_save_with_customization(table_4d, tmp_path):
+    """Test saving prediction summary plots with customization."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=100,
+        random_state=8990
+    )
+    
+    # Test saving heatmap with custom options
+    heatmap_path = tmp_path / "custom_heatmap.png"
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='heatmap',
+        figsize=(12, 8),
+        title_fontsize=16,
+        use_category_letters=True,
+        save_path=str(heatmap_path),
+        dpi=150
+    )
+    
+    assert heatmap_path.exists()
+    plt.close(fig)
+    
+    # Test saving bubble plot
+    bubble_path = tmp_path / "custom_bubble.png"
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='bubble',
+        figsize=(10, 8),
+        title_fontsize=14,
+        use_category_letters=False,
+        save_path=str(bubble_path),
+        dpi=200
+    )
+    
+    assert bubble_path.exists()
+    plt.close(fig)
+
+def test_plot_customization_none_values():
+    """Test that None values for font sizes use default behavior."""
+    # Bootstrap result
+    result = CustomBootstrapResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=np.random.normal(0.5, 0.1, 100),
+        standard_error=0.1
+    )
+    
+    fig = result.plot_distribution(
+        title_fontsize=None,
+        xlabel_fontsize=None,
+        ylabel_fontsize=None,
+        tick_fontsize=None,
+        text_fontsize=None
+    )
+    
+    assert fig is not None
+    plt.close(fig)
+    
+    # Permutation result
+    perm_result = CustomPermutationResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.random.normal(0.3, 0.1, 100)
+    )
+    
+    fig = perm_result.plot_distribution(
+        title_fontsize=None,
+        xlabel_fontsize=None,
+        ylabel_fontsize=None,
+        tick_fontsize=None
+    )
+    
+    assert fig is not None
+    plt.close(fig)
+
+def test_plot_customization_edge_cases(table_4d):
+    """Test edge cases for plot customization."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1],
+        response=4,
+        n_resamples=50,
+        random_state=8990
+    )
+    
+    # Test with very small figure size
+    fig, ax = summary_df.plot_predictions_summary(
+        figsize=(4, 3),
+        title_fontsize=8,
+        tick_fontsize=6
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+    
+    # Test with very large figure size
+    fig, ax = summary_df.plot_predictions_summary(
+        figsize=(20, 15),
+        title_fontsize=24,
+        tick_fontsize=18
+    )
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+def test_plot_customization_invalid_plot_type(table_4d):
+    """Test error handling for invalid plot types."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=50,
+        random_state=8990
+    )
+    
+    # Test invalid plot type
+    with pytest.raises(ValueError, match="plot_type must be either 'heatmap' or 'bubble'"):
+        summary_df.plot_predictions_summary(plot_type='invalid')
+
+def test_bootstrap_result_plot_missing_distribution():
+    """Test bootstrap result plotting when bootstrap_distribution is None."""
+    result = CustomBootstrapResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=None,  # Missing distribution
+        standard_error=0.1
+    )
+    
+    # Should return None and print warning
+    fig = result.plot_distribution()
+    assert fig is None
+
+def test_plot_customization_backward_compatibility(table_4d):
+    """Test that all plotting functions work without new parameters."""
+    # Test bootstrap result plotting (old style)
+    result = CustomBootstrapResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        confidence_interval=(0.3, 0.7),
+        bootstrap_distribution=np.random.normal(0.5, 0.1, 100),
+        standard_error=0.1
+    )
+    
+    fig = result.plot_distribution()  # No new parameters
+    assert fig is not None
+    plt.close(fig)
+    
+    # Test permutation result plotting (old style)
+    perm_result = CustomPermutationResult(
+        metric_name="Test CCRAM",
+        observed_value=0.5,
+        p_value=0.05,
+        null_distribution=np.random.normal(0.3, 0.1, 100)
+    )
+    
+    fig = perm_result.plot_distribution()  # No new parameters
+    assert fig is not None
+    plt.close(fig)
+    
+    # Test prediction summary plotting (old style)
+    summary_df = bootstrap_predict_ccr_summary(
+        table_4d,
+        predictors=[1, 2],
+        response=4,
+        n_resamples=50,
+        random_state=8990
+    )
+    
+    fig, ax = summary_df.plot_predictions_summary()  # No new parameters
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)

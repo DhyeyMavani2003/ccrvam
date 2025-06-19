@@ -44,7 +44,14 @@ class CustomBootstrapResult:
 
     def plot_distribution(
         self, 
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        title_fontsize: Optional[int] = None,
+        xlabel_fontsize: Optional[int] = None,
+        ylabel_fontsize: Optional[int] = None,
+        tick_fontsize: Optional[int] = None,
+        text_fontsize: Optional[int] = None,
+        **kwargs
     ) -> Optional[plt.Figure]:
         """
         Plot bootstrap distribution with observed value.
@@ -52,6 +59,13 @@ class CustomBootstrapResult:
         Input Arguments
         --------------
         - `title` : Title of the plot (optional)
+        - `figsize` : Figure size as (width, height) tuple (optional)
+        - `title_fontsize` : Font size for the plot title (optional)
+        - `xlabel_fontsize` : Font size for x-axis label (optional)
+        - `ylabel_fontsize` : Font size for y-axis label (optional)
+        - `tick_fontsize` : Font size for axis tick labels (optional)
+        - `text_fontsize` : Font size for text inside the plot (optional)
+        - `**kwargs` : Additional matplotlib arguments passed to plotting functions
 
         Outputs
         -------
@@ -68,7 +82,11 @@ class CustomBootstrapResult:
             return None
             
         try:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            # Set default figure size if not provided
+            if figsize is None:
+                figsize = (10, 6)
+            
+            fig, ax = plt.subplots(figsize=figsize, **kwargs)
             
             data_range = np.ptp(self.bootstrap_distribution)
             
@@ -79,8 +97,14 @@ class CustomBootstrapResult:
                 ax.axvline(unique_value, color='blue', linewidth=2, 
                         label=f'All bootstrap values ≈ {unique_value:.4f}')
                 ax.set_xlim([unique_value - 0.1, unique_value + 0.1])  # Add some padding
+                
+                # Apply text fontsize if specified
+                text_props = {'ha': 'center', 'va': 'center', 'bbox': dict(facecolor='white', alpha=0.8)}
+                if text_fontsize is not None:
+                    text_props['fontsize'] = text_fontsize
+                    
                 ax.text(unique_value, 0.5, f"All {len(self.bootstrap_distribution)} bootstrap\nvalues ≈ {unique_value:.4f}", 
-                    ha='center', va='center', bbox=dict(facecolor='white', alpha=0.8))
+                    **text_props)
             else:
                 # Normal case - use histogram
                 bins = min(50, max(10, int(np.sqrt(len(self.bootstrap_distribution)))))
@@ -90,9 +114,27 @@ class CustomBootstrapResult:
             ax.axvline(self.observed_value, color='red', linestyle='--', 
                     label=f'Observed {self.metric_name} = {self.observed_value:.4f}')
             
-            ax.set_xlabel(f'{self.metric_name} Value')
-            ax.set_ylabel('Density')
-            ax.set_title(title or 'Bootstrap Distribution')
+            # Set labels with custom font sizes
+            xlabel_props = {}
+            ylabel_props = {}
+            if xlabel_fontsize is not None:
+                xlabel_props['fontsize'] = xlabel_fontsize
+            if ylabel_fontsize is not None:
+                ylabel_props['fontsize'] = ylabel_fontsize
+                
+            ax.set_xlabel(f'{self.metric_name} Value', **xlabel_props)
+            ax.set_ylabel('Density', **ylabel_props)
+            
+            # Set title with custom font size
+            title_props = {}
+            if title_fontsize is not None:
+                title_props['fontsize'] = title_fontsize
+            ax.set_title(title or 'Bootstrap Distribution', **title_props)
+            
+            # Set tick label font sizes
+            if tick_fontsize is not None:
+                ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+            
             ax.legend()
             self.histogram_fig = fig
             return fig
@@ -665,7 +707,14 @@ def bootstrap_predict_ccr_summary(
         cmap: str = 'Blues', 
         save_path: Optional[str] = None, 
         dpi: Optional[int] = 300,
-        plot_type: str = 'heatmap'
+        plot_type: str = 'heatmap',
+        title_fontsize: Optional[int] = None,
+        xlabel_fontsize: Optional[int] = None,
+        ylabel_fontsize: Optional[int] = None,
+        tick_fontsize: Optional[int] = None,
+        text_fontsize: Optional[int] = None,
+        use_category_letters: bool = False,
+        **kwargs
     ) -> Tuple[plt.Figure, plt.Axes]:
         """
         Plot prediction percentages as either a heatmap or bubble plot visualization.
@@ -680,6 +729,13 @@ def bootstrap_predict_ccr_summary(
         - `save_path` : Path to save the plot (optional)
         - `dpi` : Resolution for saved image (default=300) (optional)
         - `plot_type` : Type of plot to generate ('heatmap' or 'bubble') (default='heatmap')
+        - `title_fontsize` : Font size for the plot title (optional)
+        - `xlabel_fontsize` : Font size for x-axis label (optional)
+        - `ylabel_fontsize` : Font size for y-axis label (optional)
+        - `tick_fontsize` : Font size for axis tick labels (optional)
+        - `text_fontsize` : Font size for text inside the plot (optional)
+        - `use_category_letters` : Whether to use letters for categories instead of numbers (optional)
+        - `**kwargs` : Additional matplotlib arguments passed to plotting functions
             
         Outputs
         -------
@@ -693,7 +749,7 @@ def bootstrap_predict_ccr_summary(
             figsize = (max(8, n_cols * 1.2), 
                     max(6, n_rows * 1.2))
         
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(figsize=figsize, **kwargs)
         
         # Sort the DataFrame by index in descending order to get categories from highest to lowest
         prediction_matrix_sorted = prediction_matrix.sort_index(ascending=False)
@@ -715,7 +771,15 @@ def bootstrap_predict_ccr_summary(
             for part in parts:
                 if "=" in part:
                     name, val = part.split("=")
-                    values.append(val)
+                    if use_category_letters:
+                        try:
+                            val_int = int(val)
+                            val_letter = chr(ord('A') + val_int - 1) if val_int <= 26 else f"Cat{val_int}"
+                            values.append(val_letter)
+                        except ValueError:
+                            values.append(val)
+                    else:
+                        values.append(val)
                     var_names.append(name)
             
             values_str = f"({', '.join(values)})"
@@ -786,25 +850,38 @@ def bootstrap_predict_ccr_summary(
                         value = prediction_matrix_sorted.iloc[i, j]
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
-                            ax.text(j, display_pos - 0.25, f"{value:.2f}%", 
-                                   ha='center', va='top', 
-                                   color=text_color, fontweight='bold',
-                                   fontsize=10)
+                            text_props = {
+                                'ha': 'center', 'va': 'top', 
+                                'color': text_color, 'fontweight': 'bold',
+                                'fontsize': text_fontsize if text_fontsize is not None else 10
+                            }
+                            ax.text(j, display_pos - 0.25, f"{value:.2f}%", **text_props)
             
             # Set x-axis labels
             ax.set_xticks(range(n_cols))
-            ax.set_xticklabels(x_labels, rotation=45, ha='right')
+            xticklabels_props = {'rotation': 45, 'ha': 'right'}
+            if tick_fontsize is not None:
+                xticklabels_props['fontsize'] = tick_fontsize
+            ax.set_xticklabels(x_labels, **xticklabels_props)
             
             # Create y-tick labels in the order they should appear
             y_labels = []
             for i in range(n_rows):
                 # Position 0 should be the highest category (n_rows)
                 category = n_rows - i
-                y_labels.append(f"{response_name}={category}")
+                if use_category_letters:
+                    # Convert to letters (A, B, C, ...)
+                    cat_letter = chr(ord('A') + category - 1) if category <= 26 else f"Cat{category}"
+                    y_labels.append(f"{response_name}={cat_letter}")
+                else:
+                    y_labels.append(f"{response_name}={category}")
             
             # Set y-axis labels
             ax.set_yticks(range(n_rows))
-            ax.set_yticklabels(y_labels)
+            yticklabels_props = {}
+            if tick_fontsize is not None:
+                yticklabels_props['fontsize'] = tick_fontsize
+            ax.set_yticklabels(y_labels, **yticklabels_props)
             
             # Add dots for predicted categories if predictions are available
             if has_predictions:
@@ -820,7 +897,10 @@ def bootstrap_predict_ccr_summary(
             
             # Add colorbar
             cbar = plt.colorbar(im, ax=ax)
-            cbar.set_label("Prediction Percentage (%)")
+            cbar_label_props = {}
+            if xlabel_fontsize is not None:
+                cbar_label_props['fontsize'] = xlabel_fontsize
+            cbar.set_label("Prediction Percentage (%)", **cbar_label_props)
             
         elif plot_type == 'bubble':
             # Create bubble plot
@@ -845,18 +925,43 @@ def bootstrap_predict_ccr_summary(
                         value = prediction_matrix_sorted.iloc[i, j]
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
-                            ax.text(j, n_rows - 1 - i + 0.25, f"{value:.2f}%", 
-                                    ha='center', va='center', 
-                                    color=text_color, fontweight='bold',
-                                    fontsize=9)
+                            text_props = {
+                                'ha': 'center', 'va': 'center', 
+                                'color': text_color, 'fontweight': 'bold',
+                                'fontsize': text_fontsize if text_fontsize is not None else 9
+                            }
+                            ax.text(j, n_rows - 1 - i + 0.25, f"{value:.2f}%", **text_props)
             
             # Set x-axis labels
             ax.set_xticks(range(n_cols))
-            ax.set_xticklabels(x_labels, rotation=45, ha='right')
+            xticklabels_props = {'rotation': 45, 'ha': 'right'}
+            if tick_fontsize is not None:
+                xticklabels_props['fontsize'] = tick_fontsize
+            ax.set_xticklabels(x_labels, **xticklabels_props)
             
             # Set y-axis labels in reverse order to match heatmap
             ax.set_yticks(range(n_rows))
-            ax.set_yticklabels(prediction_matrix_sorted.index[::-1])
+            y_labels_bubble = prediction_matrix_sorted.index[::-1]
+            if use_category_letters:
+                # Convert category numbers to letters in y-axis labels
+                new_y_labels = []
+                for label in y_labels_bubble:
+                    if "=" in label:
+                        var_name, cat_num = label.split("=", 1)
+                        try:
+                            cat_int = int(cat_num)
+                            cat_letter = chr(ord('A') + cat_int - 1) if cat_int <= 26 else f"Cat{cat_int}"
+                            new_y_labels.append(f"{var_name}={cat_letter}")
+                        except ValueError:
+                            new_y_labels.append(label)
+                    else:
+                        new_y_labels.append(label)
+                y_labels_bubble = new_y_labels
+            
+            yticklabels_props = {}
+            if tick_fontsize is not None:
+                yticklabels_props['fontsize'] = tick_fontsize
+            ax.set_yticklabels(y_labels_bubble, **yticklabels_props)
             
             # Add dots for predicted categories if predictions are available
             if has_predictions:
@@ -871,7 +976,10 @@ def bootstrap_predict_ccr_summary(
             
             # Add colorbar
             cbar = plt.colorbar(scatter, ax=ax)
-            cbar.set_label("Prediction Percentage (%)")
+            cbar_label_props = {}
+            if xlabel_fontsize is not None:
+                cbar_label_props['fontsize'] = xlabel_fontsize
+            cbar.set_label("Prediction Percentage (%)", **cbar_label_props)
             
             # Set aspect ratio to 'equal' for better bubble visualization
             ax.set_aspect('equal')
@@ -907,10 +1015,22 @@ def bootstrap_predict_ccr_summary(
         else:
             title = title_base
             
-        ax.set_title(title)
+        # Set title with custom font size
+        title_props = {}
+        if title_fontsize is not None:
+            title_props['fontsize'] = title_fontsize
+        ax.set_title(title, **title_props)
         
-        ax.set_xlabel(f"Category Combinations of {var_names_str}")
-        ax.set_ylabel(f"{response_name} Categories")
+        # Set axis labels with custom font sizes
+        xlabel_props = {}
+        ylabel_props = {}
+        if xlabel_fontsize is not None:
+            xlabel_props['fontsize'] = xlabel_fontsize
+        if ylabel_fontsize is not None:
+            ylabel_props['fontsize'] = ylabel_fontsize
+            
+        ax.set_xlabel(f"Category Combinations of {var_names_str}", **xlabel_props)
+        ax.set_ylabel(f"{response_name} Categories", **ylabel_props)
         
         plt.tight_layout()
         
@@ -1025,7 +1145,13 @@ class CustomPermutationResult:
 
     def plot_distribution(
         self,
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        figsize: Optional[Tuple[int, int]] = None,
+        title_fontsize: Optional[int] = None,
+        xlabel_fontsize: Optional[int] = None,
+        ylabel_fontsize: Optional[int] = None,
+        tick_fontsize: Optional[int] = None,
+        **kwargs
     ) -> Optional[plt.Figure]:
         """
         Plot null distribution with observed value.
@@ -1033,22 +1159,51 @@ class CustomPermutationResult:
         Input Arguments
         --------------
         - `title` : Title of the plot (optional)
+        - `figsize` : Figure size as (width, height) tuple (optional)
+        - `title_fontsize` : Font size for the plot title (optional)
+        - `xlabel_fontsize` : Font size for x-axis label (optional)
+        - `ylabel_fontsize` : Font size for y-axis label (optional)
+        - `tick_fontsize` : Font size for axis tick labels (optional)
+        - `**kwargs` : Additional matplotlib arguments passed to plotting functions
 
         Outputs
         -------
         Matplotlib figure of distribution plot
         """
         try:
-            fig, ax = plt.subplots(figsize=(10, 6))
+            # Set default figure size if not provided
+            if figsize is None:
+                figsize = (10, 6)
+            
+            fig, ax = plt.subplots(figsize=figsize, **kwargs)
             data_range = np.ptp(self.null_distribution)
             bins = 1 if data_range == 0 else min(50, max(1, int(np.sqrt(len(self.null_distribution)))))
             
             ax.hist(self.null_distribution, bins=bins, density=True, alpha=0.7)
             ax.axvline(self.observed_value, color='red', linestyle='--', 
                       label=f'Observed {self.metric_name}')
-            ax.set_xlabel(f'{self.metric_name} Value')
-            ax.set_ylabel('Density')
-            ax.set_title(title or 'Null Distribution')
+            
+            # Set labels with custom font sizes
+            xlabel_props = {}
+            ylabel_props = {}
+            if xlabel_fontsize is not None:
+                xlabel_props['fontsize'] = xlabel_fontsize
+            if ylabel_fontsize is not None:
+                ylabel_props['fontsize'] = ylabel_fontsize
+                
+            ax.set_xlabel(f'{self.metric_name} Value', **xlabel_props)
+            ax.set_ylabel('Density', **ylabel_props)
+            
+            # Set title with custom font size
+            title_props = {}
+            if title_fontsize is not None:
+                title_props['fontsize'] = title_fontsize
+            ax.set_title(title or 'Null Distribution', **title_props)
+            
+            # Set tick label font sizes
+            if tick_fontsize is not None:
+                ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+            
             ax.legend()
             self.histogram_fig = fig
             return fig

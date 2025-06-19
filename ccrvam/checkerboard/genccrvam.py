@@ -351,7 +351,14 @@ class GenericCCRVAM:
         show_indep_line: bool = True,
         figsize: Union[tuple, None] = None,
         save_path: Union[str, None] = None,
-        dpi: int = 300
+        dpi: int = 300,
+        title_fontsize: Union[int, None] = None,
+        xlabel_fontsize: Union[int, None] = None,
+        ylabel_fontsize: Union[int, None] = None,
+        tick_fontsize: Union[int, None] = None,
+        text_fontsize: Union[int, None] = None,
+        use_category_letters: bool = False,
+        **kwargs
     ) -> None:
         """
         Plot CCR predictions as a visualization.
@@ -366,6 +373,13 @@ class GenericCCRVAM:
         - `figsize` : Figure size (width, height)
         - `save_path` : Path to save the plot (e.g. 'plots/ccr_pred.pdf')
         - `dpi` : Resolution for saving raster images (png, jpg)
+        - `title_fontsize` : Font size for the plot title (optional)
+        - `xlabel_fontsize` : Font size for x-axis label (optional)
+        - `ylabel_fontsize` : Font size for y-axis label (optional)
+        - `tick_fontsize` : Font size for axis tick labels (optional)
+        - `text_fontsize` : Font size for text inside the plot (optional)
+        - `use_category_letters` : Whether to use letters for categories instead of numbers (optional)
+        - `**kwargs` : Additional matplotlib arguments passed to plotting functions
         
         Outputs
         -------
@@ -410,7 +424,7 @@ class GenericCCRVAM:
             figsize = (width, height)
                 
         # Create the plot
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(figsize=figsize, **kwargs)
         
         # Plot white background without grid
         ax.imshow(heatmap_data, aspect='auto', cmap='binary', 
@@ -418,14 +432,33 @@ class GenericCCRVAM:
         
         # Set y-axis labels (response categories in descending order)
         ax.set_yticks(range(response_cats))
-        ax.set_yticklabels([f"{response_cats-i}" for i in range(response_cats)])
+        if use_category_letters:
+            y_labels = []
+            for i in range(response_cats):
+                cat_num = response_cats - i
+                cat_letter = chr(ord('A') + cat_num - 1) if cat_num <= 26 else f"Cat{cat_num}"
+                y_labels.append(cat_letter)
+        else:
+            y_labels = [f"{response_cats-i}" for i in range(response_cats)]
+            
+        yticklabels_props = {}
+        if tick_fontsize is not None:
+            yticklabels_props['fontsize'] = tick_fontsize
+        ax.set_yticklabels(y_labels, **yticklabels_props)
         
         # Create x-axis labels and legend elements
         legend_elements = []
         x_labels = []
         for i, row in predictions_df[pred_cat_columns].iterrows():
             # Extract values and variable names
-            values = [str(int(row[col])) for col in pred_cat_columns]
+            values = []
+            for col in pred_cat_columns:
+                val = int(row[col])
+                if use_category_letters:
+                    val_letter = chr(ord('A') + val - 1) if val <= 26 else f"Cat{val}"
+                    values.append(val_letter)
+                else:
+                    values.append(str(val))
             var_names = [col.rsplit(' Category', 1)[0] for col in pred_cat_columns]
             
             # Create tuple notation
@@ -438,9 +471,12 @@ class GenericCCRVAM:
         
         # Set x-axis labels
         ax.set_xticks(range(len(predictions_df)))
-        ax.set_xticklabels(x_labels)
+        xticklabels_props = {}
+        if tick_fontsize is not None:
+            xticklabels_props['fontsize'] = tick_fontsize
         if legend_style == 'xaxis':
-            plt.xticks(rotation=45, ha='right')
+            xticklabels_props.update({'rotation': 45, 'ha': 'right'})
+        ax.set_xticklabels(x_labels, **xticklabels_props)
         
         # Add circles to show predicted categories
         for col in range(len(predictions_df)):
@@ -450,13 +486,24 @@ class GenericCCRVAM:
                     markersize=8, markerfacecolor='black')
         
         # Set titles and labels
-        ax.set_xlabel("Predictor Combination Index" if legend_style == 'side' else f"Category Combinations of {var_names_str}")
+        xlabel_props = {}
+        ylabel_props = {}
+        if xlabel_fontsize is not None:
+            xlabel_props['fontsize'] = xlabel_fontsize
+        if ylabel_fontsize is not None:
+            ylabel_props['fontsize'] = ylabel_fontsize
+            
+        ax.set_xlabel("Predictor Combination Index" if legend_style == 'side' else f"Category Combinations of {var_names_str}", **xlabel_props)
         response_name = variable_names[response] if not hide_response_name_flag else "Response"
-        ax.set_ylabel(f"Predicted {response_name} Category")
+        ax.set_ylabel(f"Predicted {response_name} Category", **ylabel_props)
         
         pred_names = [variable_names[p] for p in predictors]
         pred_names_str = ", ".join(pred_names)
-        ax.set_title(f"Predicted {response_name} Categories\nBased on {pred_names_str}")
+        
+        title_props = {}
+        if title_fontsize is not None:
+            title_props['fontsize'] = title_fontsize
+        ax.set_title(f"Predicted {response_name} Categories\nBased on {pred_names_str}", **title_props)
         
         # Add horizontal line showing prediction under joint independence
         if show_indep_line:
@@ -471,9 +518,18 @@ class GenericCCRVAM:
                     label=f"Prediction under joint independence: {pred_cat_under_indep}")
             
             # Add text label at right edge
+            text_props = {'color': 'blue', 'ha': 'right', 'va': 'bottom', 
+                         'fontsize': text_fontsize if text_fontsize is not None else 9}
+            
+            # Adjust text based on use_category_letters
+            if use_category_letters:
+                pred_text = chr(ord('A') + pred_cat_under_indep - 1) if pred_cat_under_indep <= 26 else f"Cat{pred_cat_under_indep}"
+            else:
+                pred_text = str(pred_cat_under_indep)
+                
             ax.text(len(predictions_df)-1, indep_y_pos + 0.3, 
-                    f"Prediction under joint independence: {pred_cat_under_indep}", 
-                    color='blue', ha='right', va='bottom', fontsize=9)
+                    f"Prediction under joint independence: {pred_text}", 
+                    **text_props)
         
         # Create a legend with combination mappings
         legend_title = "Predictor Combinations:"
@@ -495,23 +551,32 @@ class GenericCCRVAM:
                 y_pos = 0.98  # Start slightly below top
                 line_height = 0.95 / max(len(legend_text), 15)  # Adjusted line height
                 
-                legend_ax.text(0.05, y_pos, legend_title, fontweight='bold', 
-                            va='top', transform=legend_ax.transAxes)
+                legend_title_props = {'fontweight': 'bold', 'va': 'top', 'transform': legend_ax.transAxes}
+                if title_fontsize is not None:
+                    legend_title_props['fontsize'] = title_fontsize
+                legend_ax.text(0.05, y_pos, legend_title, **legend_title_props)
                 y_pos -= line_height * 1.2  # Extra space after title
                 
                 # Add all combinations to legend
+                legend_text_props = {'va': 'top', 'transform': legend_ax.transAxes,
+                                   'fontsize': text_fontsize if text_fontsize is not None else 9}
                 for entry in legend_elements:
-                    legend_ax.text(0.05, y_pos, entry, va='top', fontsize=9,
-                                transform=legend_ax.transAxes)
+                    legend_ax.text(0.05, y_pos, entry, **legend_text_props)
                     y_pos -= line_height
                     
                 legend_fig.tight_layout()
             else:
                 # For fewer combinations, use a standard legend on the main plot
                 handles = [plt.Line2D([], [], marker='none', color='none')] * len(legend_elements)
-                ax.legend(handles, legend_elements, title=legend_title,
-                        loc='center left', bbox_to_anchor=(1.05, 0.5), 
-                        fontsize='small', frameon=False)
+                legend_props = {'title': legend_title, 'loc': 'center left', 
+                               'bbox_to_anchor': (1.05, 0.5), 'frameon': False}
+                if text_fontsize is not None:
+                    legend_props['fontsize'] = text_fontsize
+                else:
+                    legend_props['fontsize'] = 'small'
+                if title_fontsize is not None:
+                    legend_props['title_fontsize'] = title_fontsize
+                ax.legend(handles, legend_elements, **legend_props)
         
         # Adjust layout and save plot
         plt.tight_layout()
