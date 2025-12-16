@@ -872,5 +872,197 @@ def test_plot_ccr_predictions_backward_compatibility(table_4d):
     )
     assert plt.get_fignums()
     plt.close('all')
+
+
+# =============================================================================
+# Tests for zero-count combinations (NA predictions)
+# =============================================================================
+
+@pytest.fixture
+def table_with_zero_count_combinations():
+    """Fixture for a 3D table with zero-count predictor combinations."""
+    # When (X1=1, X2=1), there are no observations (all zeros across X3)
+    return np.array([
+        [[0, 0, 0],   # X1=1, X2=1, X3=1,2,3 -> all zeros (no data)
+         [5, 2, 3]],  # X1=1, X2=2, X3=1,2,3
+        [[4, 1, 0],   # X1=2, X2=1, X3=1,2,3
+         [2, 3, 5]]   # X1=2, X2=2, X3=1,2,3
+    ])
+
+
+def test_get_predictions_ccr_zero_count_returns_nan(table_with_zero_count_combinations):
+    """Test that get_predictions_ccr returns NaN for zero-count combinations."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
     
+    predictions_df = ccrvam.get_predictions_ccr(predictors=[1, 2], response=3)
+    
+    # Check that the first row (X1=1, X2=1) has NaN prediction
+    first_prediction = predictions_df.iloc[0]['Predicted Response Category']
+    assert pd.isna(first_prediction), "Zero-count combination should have NaN prediction"
+    
+    # Check that other combinations have valid predictions (not NaN)
+    for i in range(1, len(predictions_df)):
+        pred = predictions_df.iloc[i]['Predicted Response Category']
+        assert not pd.isna(pred), f"Non-zero combination at index {i} should have valid prediction"
+        assert pred >= 1 and pred <= 3, f"Prediction should be between 1 and 3, got {pred}"
+        # Verify prediction is an integer type (not float with decimal)
+        assert isinstance(pred, (int, np.integer)), f"Prediction should be integer type, got {type(pred)}"
+
+
+def test_get_predictions_ccr_zero_count_preserves_other_columns(table_with_zero_count_combinations):
+    """Test that predictor columns are correct even when prediction is NaN."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
+    
+    predictions_df = ccrvam.get_predictions_ccr(predictors=[1, 2], response=3)
+    
+    # Verify all predictor category columns have valid values
+    assert all(predictions_df['X1 Category'].notna())
+    assert all(predictions_df['X2 Category'].notna())
+    
+    # Check first row has correct predictor values
+    assert predictions_df.iloc[0]['X1 Category'] == 1
+    assert predictions_df.iloc[0]['X2 Category'] == 1
+
+
+def test_get_predictions_ccr_multiple_zero_count_combinations():
+    """Test handling of multiple zero-count combinations."""
+    # Table with two zero-count combinations
+    table = np.array([
+        [[0, 0, 0],   # X1=1, X2=1 -> zero count
+         [0, 0, 0]],  # X1=1, X2=2 -> zero count
+        [[4, 1, 0],   # X1=2, X2=1 -> has data
+         [2, 3, 5]]   # X1=2, X2=2 -> has data
+    ])
+    
+    ccrvam = GenericCCRVAM.from_contingency_table(table)
+    predictions_df = ccrvam.get_predictions_ccr(predictors=[1, 2], response=3)
+    
+    # First two rows should have NaN predictions
+    assert pd.isna(predictions_df.iloc[0]['Predicted Response Category'])
+    assert pd.isna(predictions_df.iloc[1]['Predicted Response Category'])
+    
+    # Last two rows should have valid predictions
+    assert not pd.isna(predictions_df.iloc[2]['Predicted Response Category'])
+    assert not pd.isna(predictions_df.iloc[3]['Predicted Response Category'])
+
+
+def test_plot_ccr_predictions_with_zero_count_no_error(table_with_zero_count_combinations):
+    """Test that plot_ccr_predictions works without error for zero-count combinations."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
+    
+    # Should not raise any error
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=3
+    )
+    
+    # Verify figure was created
+    assert plt.get_fignums()
+    plt.close('all')
+
+
+def test_plot_ccr_predictions_zero_count_with_save(table_with_zero_count_combinations):
+    """Test saving plot with zero-count combinations."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
+    
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        save_path = os.path.join(tmpdirname, 'zero_count_plot.png')
+        
+        ccrvam.plot_ccr_predictions(
+            predictors=[1, 2],
+            response=3,
+            save_path=save_path,
+            dpi=100
+        )
+        
+        # Verify file was saved
+        assert os.path.exists(save_path)
+    
+    plt.close('all')
+
+
+def test_plot_ccr_predictions_zero_count_with_category_letters(table_with_zero_count_combinations):
+    """Test plotting with category letters and zero-count combinations."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
+    
+    # Should not raise any error
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=3,
+        use_category_letters=True
+    )
+    
+    assert plt.get_fignums()
+    plt.close('all')
+
+
+def test_plot_ccr_predictions_zero_count_with_all_options(table_with_zero_count_combinations):
+    """Test plotting with all customization options and zero-count combinations."""
+    ccrvam = GenericCCRVAM.from_contingency_table(table_with_zero_count_combinations)
+    
+    variable_names = {1: "Var1", 2: "Var2", 3: "Response"}
+    
+    ccrvam.plot_ccr_predictions(
+        predictors=[1, 2],
+        response=3,
+        variable_names=variable_names,
+        legend_style='xaxis',
+        show_indep_line=True,
+        figsize=(10, 8),
+        title_fontsize=14,
+        xlabel_fontsize=12,
+        ylabel_fontsize=12,
+        tick_fontsize=10,
+        text_fontsize=9,
+        use_category_letters=False
+    )
+    
+    assert plt.get_fignums()
+    plt.close('all')
+
+
+def test_get_predictions_ccr_single_predictor_zero_count():
+    """Test zero-count handling with a single predictor."""
+    # 2D table where X1=1 has all zeros in X2
+    table = np.array([
+        [0, 0, 0],   # X1=1 -> zero count
+        [4, 3, 2],   # X1=2 -> has data
+        [1, 5, 3]    # X1=3 -> has data
+    ])
+    
+    ccrvam = GenericCCRVAM.from_contingency_table(table)
+    predictions_df = ccrvam.get_predictions_ccr(predictors=[1], response=2)
+    
+    # First row (X1=1) should have NaN prediction
+    assert pd.isna(predictions_df.iloc[0]['Predicted Response Category'])
+    
+    # Other rows should have valid predictions
+    assert not pd.isna(predictions_df.iloc[1]['Predicted Response Category'])
+    assert not pd.isna(predictions_df.iloc[2]['Predicted Response Category'])
+
+
+def test_get_predictions_ccr_integer_display():
+    """Test that predictions are displayed as integers (not floats with decimals)."""
+    # Table without any zero-count combinations
+    table = np.array([
+        [[5, 2, 3],
+         [4, 1, 2]],
+        [[3, 4, 1],
+         [2, 3, 5]]
+    ])
+    
+    ccrvam = GenericCCRVAM.from_contingency_table(table)
+    predictions_df = ccrvam.get_predictions_ccr(predictors=[1, 2], response=3)
+    
+    # All predictions should be valid (no NaN)
+    assert predictions_df['Predicted Response Category'].notna().all()
+    
+    # Verify predictions use nullable integer dtype
+    assert predictions_df['Predicted Response Category'].dtype == pd.Int64Dtype()
+    
+    # Verify predictions are within valid range and are integers
+    for pred in predictions_df['Predicted Response Category']:
+        assert isinstance(pred, (int, np.integer)), f"Expected integer, got {type(pred)}"
+        assert 1 <= pred <= 3, f"Prediction {pred} out of valid range [1, 3]"
+
     

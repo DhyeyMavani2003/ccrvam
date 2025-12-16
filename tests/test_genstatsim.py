@@ -1153,3 +1153,287 @@ def test_plot_customization_backward_compatibility(table_4d):
     fig, ax = summary_df.plot_predictions_summary()  # No new parameters
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+
+
+# =============================================================================
+# Tests for zero-count combinations (NA predictions)
+# =============================================================================
+
+@pytest.fixture
+def table_with_zero_count_combinations():
+    """Fixture for a 3D table with zero-count predictor combinations."""
+    # When (X1=1, X2=1), there are no observations (all zeros across X3)
+    return np.array([
+        [[0, 0, 0],   # X1=1, X2=1, X3=1,2,3 -> all zeros (no data)
+         [5, 2, 3]],  # X1=1, X2=2, X3=1,2,3
+        [[4, 1, 0],   # X1=2, X2=1, X3=1,2,3
+         [2, 3, 5]]   # X1=2, X2=2, X3=1,2,3
+    ])
+
+
+def test_bootstrap_predict_ccr_summary_zero_count_predictions(table_with_zero_count_combinations):
+    """Test that bootstrap_predict_ccr_summary returns NaN for zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Check that predictions attribute exists
+    assert hasattr(summary_df, 'predictions')
+    
+    # Check that the first column (X1=1, X2=1) has NaN prediction
+    first_col = 'X1=1 X2=1'
+    pred_value = summary_df.predictions.loc[first_col, 'Predicted']
+    assert pd.isna(pred_value), f"Zero-count combination should have NaN prediction, got {pred_value}"
+    
+    # Check that other combinations have valid predictions
+    for col in ['X1=1 X2=2', 'X1=2 X2=1', 'X1=2 X2=2']:
+        pred = summary_df.predictions.loc[col, 'Predicted']
+        assert not pd.isna(pred), f"Non-zero combination {col} should have valid prediction"
+
+
+def test_bootstrap_predict_ccr_summary_zero_count_percentages(table_with_zero_count_combinations):
+    """Test that bootstrap percentages are still computed for zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Check that summary_df has values for all combinations
+    assert len(summary_df) == 4  # 2x2 predictor combinations
+    
+    # Percentages should sum to 100 for each column (approximately)
+    for col in summary_df.index:
+        col_sum = summary_df.loc[col].sum()
+        assert abs(col_sum - 100.0) < 0.01, f"Column {col} should sum to ~100%, got {col_sum}"
+
+
+def test_plot_predictions_summary_zero_count_heatmap(table_with_zero_count_combinations):
+    """Test heatmap plotting with zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Should not raise any error
+    fig, ax = summary_df.plot_predictions_summary(plot_type='heatmap')
+    
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_predictions_summary_zero_count_bubble(table_with_zero_count_combinations):
+    """Test bubble plotting with zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Should not raise any error
+    fig, ax = summary_df.plot_predictions_summary(plot_type='bubble')
+    
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_plot_predictions_summary_zero_count_with_save(table_with_zero_count_combinations):
+    """Test saving plot with zero-count combinations."""
+    import tempfile
+    import os
+    
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        save_path = os.path.join(tmpdirname, 'zero_count_summary.png')
+        
+        fig, ax = summary_df.plot_predictions_summary(
+            plot_type='heatmap',
+            save_path=save_path,
+            dpi=100
+        )
+        
+        # Verify file was saved
+        assert os.path.exists(save_path)
+        plt.close(fig)
+
+
+def test_plot_predictions_summary_zero_count_with_category_letters(table_with_zero_count_combinations):
+    """Test plotting with category letters and zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Test with category letters
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='heatmap',
+        use_category_letters=True
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+
+
+def test_save_predictions_zero_count_csv(table_with_zero_count_combinations):
+    """Test saving predictions with zero-count combinations to CSV."""
+    import tempfile
+    import os
+    
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        save_path = os.path.join(tmpdirname, 'zero_count_predictions.csv')
+        
+        save_predictions(summary_df, save_path=save_path, format='csv')
+        
+        # Verify file was saved
+        assert os.path.exists(save_path)
+        
+        # Read and verify content
+        with open(save_path, 'r') as f:
+            content = f.read()
+        
+        # Check that NA is present for zero-count combination
+        assert 'NA' in content, "CSV should contain 'NA' for zero-count combinations"
+
+
+def test_save_predictions_zero_count_txt(table_with_zero_count_combinations):
+    """Test saving predictions with zero-count combinations to TXT."""
+    import tempfile
+    import os
+    
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        save_path = os.path.join(tmpdirname, 'zero_count_predictions.txt')
+        
+        save_predictions(summary_df, save_path=save_path, format='txt')
+        
+        # Verify file was saved
+        assert os.path.exists(save_path)
+        
+        # Read and verify content
+        with open(save_path, 'r') as f:
+            content = f.read()
+        
+        # Check that NA is present for zero-count combination
+        assert 'NA' in content, "TXT should contain 'NA' for zero-count combinations"
+
+
+def test_bootstrap_predict_ccr_summary_multiple_zero_count():
+    """Test handling of multiple zero-count combinations."""
+    # Table with multiple zero-count combinations
+    table = np.array([
+        [[0, 0, 0],   # X1=1, X2=1 -> zero count
+         [0, 0, 0]],  # X1=1, X2=2 -> zero count
+        [[4, 1, 0],   # X1=2, X2=1 -> has data
+         [2, 3, 5]]   # X1=2, X2=2 -> has data
+    ])
+    
+    summary_df = bootstrap_predict_ccr_summary(
+        table,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # First two combinations should have NaN predictions
+    assert pd.isna(summary_df.predictions.loc['X1=1 X2=1', 'Predicted'])
+    assert pd.isna(summary_df.predictions.loc['X1=1 X2=2', 'Predicted'])
+    
+    # Last two combinations should have valid predictions
+    assert not pd.isna(summary_df.predictions.loc['X1=2 X2=1', 'Predicted'])
+    assert not pd.isna(summary_df.predictions.loc['X1=2 X2=2', 'Predicted'])
+
+
+def test_plot_predictions_summary_zero_count_show_indep_line(table_with_zero_count_combinations):
+    """Test plotting with independence line and zero-count combinations."""
+    summary_df = bootstrap_predict_ccr_summary(
+        table_with_zero_count_combinations,
+        predictors=[1, 2],
+        predictors_names=['X1', 'X2'],
+        response=3,
+        response_name='X3',
+        n_resamples=100,
+        random_state=42,
+        parallel=False
+    )
+    
+    # Test with show_indep_line=True
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='heatmap',
+        show_indep_line=True
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)
+    
+    # Test with show_indep_line=False
+    fig, ax = summary_df.plot_predictions_summary(
+        plot_type='bubble',
+        show_indep_line=False
+    )
+    
+    assert isinstance(fig, plt.Figure)
+    plt.close(fig)

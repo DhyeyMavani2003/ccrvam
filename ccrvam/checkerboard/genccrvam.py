@@ -207,7 +207,7 @@ class GenericCCRVAM:
         Notes
         -----
         The DataFrame contains columns for each combination of categories of the predictors and the corresponding predicted category of the response variable.
-        The categories are 1-indexed.
+        The categories are 1-indexed. Combinations with zero counts in the contingency table will have NA as the predicted category.
         
         Warnings/Errors
         --------------
@@ -236,6 +236,10 @@ class GenericCCRVAM:
         # Flatten for prediction
         flat_categories = [m.flatten() for m in mesh]
         
+        # Calculate marginal PMF of predictors to detect zero-count combinations
+        sum_axes = tuple(set(range(self.ndim)) - set(parsed_predictors))
+        preds_pmf = self.P.sum(axis=sum_axes)
+        
         # Get predictions
         predictions = self._predict_category_batched_multi(
             source_categories=flat_categories,
@@ -243,13 +247,25 @@ class GenericCCRVAM:
             response=parsed_response
         )
         
+        # Convert to float to allow NaN values during processing
+        predictions = predictions.astype(float)
+        
+        # Check for zero-count combinations and set predictions to NaN
+        for i in range(len(flat_categories[0])):
+            idx = tuple(flat_categories[k][i] for k in range(len(parsed_predictors)))
+            if preds_pmf[idx] == 0:
+                predictions[i] = np.nan
+        
         # Create DataFrame
         result = pd.DataFrame()
         for axis, cats in zip(parsed_predictors, flat_categories):
             result[f'{variable_names[axis+1]} Category'] = cats + 1
             
         response_name = variable_names[response] if not hide_response_name_flag else "Response"
-        result[f'Predicted {response_name} Category'] = predictions + 1
+        # Convert to 1-indexed and use nullable integer type for proper display
+        # (integers display without decimals, NA values are preserved)
+        predictions_1indexed = predictions + 1
+        result[f'Predicted {response_name} Category'] = pd.array(predictions_1indexed, dtype=pd.Int64Dtype())
         
         return result
     
@@ -409,8 +425,10 @@ class GenericCCRVAM:
         # Create a matrix for the heatmap (rows=response categories, columns=predictor combinations)
         heatmap_data = np.zeros((response_cats, len(predictions_df)))
         
-        # Fill in the predicted categories
+        # Fill in the predicted categories (skip NaN for zero-count combinations)
         for i, pred_cat in enumerate(predictions_df.iloc[:, -1]):
+            if pd.isna(pred_cat):
+                continue  # Skip zero-count combinations
             heatmap_data[int(pred_cat)-1, i] = 1  # Mark the predicted category with 1
         
         # Flip matrix vertically
@@ -478,9 +496,12 @@ class GenericCCRVAM:
             xticklabels_props.update({'rotation': 45, 'ha': 'right'})
         ax.set_xticklabels(x_labels, **xticklabels_props)
         
-        # Add circles to show predicted categories
+        # Add circles to show predicted categories (skip NaN for zero-count combinations)
         for col in range(len(predictions_df)):
-            pred_cat = int(predictions_df.iloc[col, -1])
+            pred_cat = predictions_df.iloc[col, -1]
+            if pd.isna(pred_cat):
+                continue  # Skip zero-count combinations
+            pred_cat = int(pred_cat)
             y_pos = response_cats - pred_cat
             ax.plot(col, y_pos, 'o', color='black', 
                     markersize=8, markerfacecolor='black')

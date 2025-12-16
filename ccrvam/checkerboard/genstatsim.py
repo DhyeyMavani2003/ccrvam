@@ -689,12 +689,15 @@ def bootstrap_predict_ccr_summary(
         # Create the column name in the same format as summary_df
         col_name = " ".join(pred_values)
         
-        # Get the predicted category (1-indexed)
+        # Get the predicted category (1-indexed), handle NaN for zero-count combinations
         response_col = [c for c in predictions_df.columns if "Predicted" in c][0]
-        pred_cat = int(row[response_col])
+        pred_value = row[response_col]
         
-        # Store the category number directly
-        pred_df.loc["Predicted", col_name] = pred_cat
+        # Store the category number directly (NaN for zero-count combinations)
+        if pd.isna(pred_value):
+            pred_df.loc["Predicted", col_name] = np.nan
+        else:
+            pred_df.loc["Predicted", col_name] = int(pred_value)
     
     # Add predictions DataFrame as an attribute to the summary DataFrame
     summary_df.predictions = pred_df
@@ -889,6 +892,10 @@ def bootstrap_predict_ccr_summary(
                     if col_name in prediction_matrix.predictions.columns:
                         pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
                         
+                        # Skip if prediction is NaN (zero-count combination)
+                        if pd.isna(pred_cat):
+                            continue
+                        
                         # Calculate display position for the predicted category
                         display_pos = n_rows - pred_cat
                         display_pos = max(0, min(display_pos, n_rows - 1))
@@ -968,8 +975,13 @@ def bootstrap_predict_ccr_summary(
                 for j, col_name in enumerate(prediction_matrix_sorted.columns):
                     if col_name in prediction_matrix.predictions.columns:
                         pred_cat = prediction_matrix.predictions.loc["Predicted", col_name]
+                        
+                        # Skip if prediction is NaN (zero-count combination)
+                        if pd.isna(pred_cat):
+                            continue
+                        
                         for i, idx in enumerate(prediction_matrix_sorted.index):
-                            if idx.endswith(f"={pred_cat}"):
+                            if idx.endswith(f"={int(pred_cat)}"):
                                 ax.plot(j, n_rows - 1 - i, 'o', color='white', markersize=8, 
                                       markerfacecolor='white', markeredgecolor='black')
                                 break
@@ -1101,7 +1113,8 @@ def save_predictions(
         # Store the column name as is
         output_data[col] = {}
 
-        output_data[col]['Predicted_Category'] = int(predictions.loc['Predicted', col])
+        pred_value = predictions.loc['Predicted', col]
+        output_data[col]['Predicted_Category'] = 'NA' if pd.isna(pred_value) else int(pred_value)
         
         percentages = prediction_matrix[col].round(decimal_places)
         for idx, pct in percentages.items():

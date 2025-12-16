@@ -5,7 +5,7 @@
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "autoDocstring.docstringFormat": "sphinx",
-    "python.languageServer": "Pylance",
+    "python.languageServer": "None",
     "python.analysis.extraPaths": [
       "${workspaceFolder}"
     ],
