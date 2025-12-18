@@ -1547,3 +1547,342 @@ def permutation_test_ccram(
     
     result.plot_distribution(f'Null Distribution: {metric_name}')
     return result
+
+
+@dataclass
+class SubsetCCRAMResult:
+    """
+    Container for subset (S)CCRAM analysis results.
+    
+    Input Arguments
+    --------------
+    - `results_df` : DataFrame containing all subset (S)CCRAM results with columns:
+        - k: number of predictors in subset
+        - predictors: tuple of predictor variable indices (1-indexed)
+        - response: response variable index (1-indexed)
+        - ccram/sccram: (S)CCRAM value for this subset (column name depends on scaled parameter)
+    - `response` : The response variable index (1-indexed) used in the analysis
+    - `n_dimensions` : Total number of dimensions in the contingency table
+    - `scaled` : Whether scaled CCRAM (SCCRAM) was used
+    """
+    results_df: pd.DataFrame
+    response: int
+    n_dimensions: int
+    scaled: bool
+    
+    @property
+    def metric_column(self) -> str:
+        """Return the column name for the metric based on scaled parameter."""
+        return 'sccram' if self.scaled else 'ccram'
+    
+    def get_top_subsets(self, n: int = 5) -> pd.DataFrame:
+        """
+        Get the top n subsets with highest (S)CCRAM values.
+        
+        Input Arguments
+        --------------
+        - `n` : Number of top subsets to return (default=5)
+        
+        Outputs
+        -------
+        DataFrame with top n subsets sorted by (S)CCRAM value
+        """
+        return self.results_df.nlargest(n, self.metric_column).reset_index(drop=True)
+    
+    def get_subsets_by_k(self, k: int) -> pd.DataFrame:
+        """
+        Get all subsets with exactly k predictors.
+        
+        Input Arguments
+        --------------
+        - `k` : Number of predictors
+        
+        Outputs
+        -------
+        DataFrame with subsets having k predictors, sorted by (S)CCRAM
+        """
+        return self.results_df[self.results_df['k'] == k].reset_index(drop=True)
+    
+    def summary(self) -> pd.DataFrame:
+        """
+        Get summary statistics for each k value.
+        
+        Outputs
+        -------
+        DataFrame with summary statistics (max, mean, min, count) for each k
+        """
+        col = self.metric_column
+        summary = self.results_df.groupby('k')[col].agg(['max', 'mean', 'min', 'count'])
+        summary.columns = [f'max_{col}', f'mean_{col}', f'min_{col}', 'n_subsets']
+        return summary.reset_index()
+
+
+@dataclass
+class BestSubsetCCRAMResult:
+    """
+    Container for best subset (S)CCRAM analysis results.
+    
+    Input Arguments
+    --------------
+    - `predictors` : Tuple of optimal predictor variable indices (1-indexed)
+    - `response` : Response variable index (1-indexed)
+    - `ccram` : (S)CCRAM value for the optimal subset
+    - `k` : Number of predictors in the optimal subset
+    - `rank_within_k` : Rank of this subset within all subsets of size k
+    - `total_subsets_in_k` : Total number of subsets of size k
+    - `scaled` : Whether scaled CCRAM (SCCRAM) was used
+    - `all_results` : Full SubsetCCRAMResult object for further analysis
+    """
+    predictors: tuple
+    response: int
+    ccram: float
+    k: int
+    rank_within_k: int
+    total_subsets_in_k: int
+    scaled: bool
+    all_results: SubsetCCRAMResult
+    
+    def __repr__(self) -> str:
+        predictors_str = ', '.join([f'X{p}' for p in self.predictors])
+        metric_name = "SCCRAM" if self.scaled else "CCRAM"
+        return (
+            f"BestSubsetCCRAMResult(\n"
+            f"  Optimal Predictors: ({predictors_str})\n"
+            f"  Response: X{self.response}\n"
+            f"  {metric_name}: {self.ccram:.6f}\n"
+            f"  Number of Predictors (k): {self.k}\n"
+            f"  Rank within k={self.k} subsets: {self.rank_within_k}/{self.total_subsets_in_k}\n"
+            f")"
+        )
+    
+    def summary_df(self) -> pd.DataFrame:
+        """
+        Return a DataFrame with the summary of the best subset.
+        
+        Outputs
+        -------
+        DataFrame with best subset information
+        """
+        predictors_str = ', '.join([f'X{p}' for p in self.predictors])
+        metric_name = "SCCRAM" if self.scaled else "CCRAM"
+        return pd.DataFrame({
+            'metric': ['Optimal Predictors', 'Response', metric_name, 'Number of Predictors (k)', 
+                      'Rank within k', 'Total subsets with k predictors'],
+            'value': [f"({predictors_str})", f"X{self.response}", f"{self.ccram:.6f}", 
+                     self.k, self.rank_within_k, self.total_subsets_in_k]
+        })
+
+
+def all_subsets_ccram(
+    contingency_table: np.ndarray,
+    response: int,
+    scaled: bool = False,
+    k: Optional[int] = None,
+    variable_names: Optional[dict] = None
+) -> SubsetCCRAMResult:
+    """
+    Calculate (S)CCRAM for all possible predictor subsets.
+    
+    This function computes the (Scaled) Checkerboard Copula Regression Association Measure ((S)CCRAM)
+    for all combinations of predictor variables given a specified response variable. Results are
+    organized by the number of predictors (k) and sorted by (S)CCRAM value within each k.
+    
+    Input Arguments
+    --------------
+    - `contingency_table` : Input contingency table of frequency counts (multi-dimensional numpy array)
+    - `response` : 1-indexed target response variable axis for (S)CCRAM calculation
+    - `scaled` : Whether to use scaled (S)CCRAM (default=False)
+    - `k` : Optional number of predictors to consider. If None, all possible subset sizes are computed
+           (from k=1 to k=ndim-1). If specified, only subsets of size k are computed.
+    - `variable_names` : Optional dictionary mapping 1-indexed variable indices to names.
+                        If provided, predictor names will be included in the output.
+    
+    Outputs
+    -------
+    SubsetCCRAMResult object containing:
+        - results_df: DataFrame with columns [k, predictors, response, ccram/sccram] 
+                     (column name is 'ccram' when scaled=False, 'sccram' when scaled=True)
+                     (and optionally predictor_names), sorted by k ascending 
+                     and metric value descending within each k
+        - response: The response variable index
+        - n_dimensions: Total number of dimensions
+        - scaled: Whether scaled CCRAM was used
+    
+    Warnings/Errors
+    --------------
+    - `ValueError` : If response axis is out of bounds
+    - `ValueError` : If k is specified but invalid (k < 1 or k >= ndim)
+    
+    Example
+    -------
+    >>> import numpy as np
+    >>> # Create a 4-dimensional contingency table (3x3x3x3)
+    >>> table = np.random.randint(1, 10, size=(3, 3, 3, 3))
+    >>> # Calculate CCRAM for all subsets predicting X4
+    >>> result = all_subsets_ccram(table, response=4)
+    >>> print(result.results_df)
+    >>> # Calculate SCCRAM for all subsets predicting X4
+    >>> result_scaled = all_subsets_ccram(table, response=4, scaled=True)
+    >>> # Get only 2-predictor subsets
+    >>> result_k2 = all_subsets_ccram(table, response=4, k=2)
+    """
+    ndim = contingency_table.ndim
+    
+    # Validate response
+    if response < 1 or response > ndim:
+        raise ValueError(f"Response axis {response} is out of bounds for array of dimension {ndim}")
+    
+    # Validate k if provided
+    if k is not None:
+        if k < 1:
+            raise ValueError(f"k must be at least 1, got {k}")
+        if k >= ndim:
+            raise ValueError(f"k must be less than {ndim} (total dimensions), got {k}")
+    
+    # Get all predictor axes (1-indexed), excluding response
+    all_predictors = [i for i in range(1, ndim + 1) if i != response]
+    
+    # Determine k values to compute
+    if k is not None:
+        k_values = [k]
+    else:
+        k_values = range(1, ndim)  # k from 1 to ndim-1
+    
+    # Initialize CCRVAM model
+    ccrvam = GenericCCRVAM.from_contingency_table(contingency_table)
+    
+    # Determine column name based on scaled parameter
+    metric_col = 'sccram' if scaled else 'ccram'
+    
+    # Collect results
+    results = []
+    
+    for curr_k in k_values:
+        # Generate all combinations of curr_k predictors
+        for predictor_combo in itertools.combinations(all_predictors, curr_k):
+            # Calculate (S)CCRAM for this combination
+            ccram_value = ccrvam.calculate_CCRAM(
+                predictors=list(predictor_combo),
+                response=response,
+                scaled=scaled
+            )
+            
+            result_entry = {
+                'k': curr_k,
+                'predictors': predictor_combo,
+                'response': response,
+                metric_col: ccram_value
+            }
+            
+            # Add predictor names if provided
+            if variable_names is not None:
+                pred_names = tuple(variable_names.get(p, f"X{p}") for p in predictor_combo)
+                result_entry['predictor_names'] = pred_names
+            
+            results.append(result_entry)
+    
+    # Create DataFrame
+    results_df = pd.DataFrame(results)
+    
+    # Sort by k ascending, then by metric descending within each k
+    results_df = results_df.sort_values(
+        by=['k', metric_col], 
+        ascending=[True, False]
+    ).reset_index(drop=True)
+    
+    return SubsetCCRAMResult(
+        results_df=results_df,
+        response=response,
+        n_dimensions=ndim,
+        scaled=scaled
+    )
+
+
+def best_subset_ccram(
+    contingency_table: np.ndarray,
+    response: int,
+    scaled: bool = False,
+    k: Optional[int] = None,
+    variable_names: Optional[dict] = None
+) -> BestSubsetCCRAMResult:
+    """
+    Find the optimal predictor subset with the highest (S)CCRAM value.
+    
+    This function identifies the predictor combination that yields the maximum 
+    (Scaled) Checkerboard Copula Regression Association Measure ((S)CCRAM) for predicting
+    the specified response variable.
+    
+    Input Arguments
+    --------------
+    - `contingency_table` : Input contingency table of frequency counts (multi-dimensional numpy array)
+    - `response` : 1-indexed target response variable axis for (S)CCRAM calculation
+    - `scaled` : Whether to use scaled (S)CCRAM (default=False)
+    - `k` : Optional number of predictors to consider. If None, searches across all possible 
+           subset sizes (k=1 to k=ndim-1). If specified, finds the best subset of exactly k predictors.
+    - `variable_names` : Optional dictionary mapping 1-indexed variable indices to names.
+    
+    Outputs
+    -------
+    BestSubsetCCRAMResult object containing:
+        - predictors: Tuple of optimal predictor variable indices (1-indexed)
+        - response: Response variable index
+        - ccram: (S)CCRAM value for the optimal subset
+        - k: Number of predictors in the optimal subset
+        - rank_within_k: Rank of this subset among all subsets of the same size k
+        - total_subsets_in_k: Total number of subsets of size k
+        - scaled: Whether scaled CCRAM was used
+        - all_results: Complete SubsetCCRAMResult for further analysis
+    
+    Warnings/Errors
+    --------------
+    - `ValueError` : If response axis is out of bounds
+    - `ValueError` : If k is specified but invalid (k < 1 or k >= ndim)
+    
+    Example
+    -------
+    >>> import numpy as np
+    >>> # Create a 4-dimensional contingency table (3x3x3x3)
+    >>> table = np.random.randint(1, 10, size=(3, 3, 3, 3))
+    >>> # Find the best predictor subset for predicting X4 (using CCRAM)
+    >>> best = best_subset_ccram(table, response=4)
+    >>> print(best)
+    >>> # Find the best predictor subset using SCCRAM
+    >>> best_scaled = best_subset_ccram(table, response=4, scaled=True)
+    >>> # Find the best 2-predictor subset
+    >>> best_k2 = best_subset_ccram(table, response=4, k=2)
+    """
+    # Get all subset results
+    all_results = all_subsets_ccram(
+        contingency_table=contingency_table,
+        response=response,
+        scaled=scaled,
+        k=k,
+        variable_names=variable_names
+    )
+    
+    # Get the metric column name
+    metric_col = all_results.metric_column
+    
+    # Find the best subset (highest (S)CCRAM)
+    best_idx = all_results.results_df[metric_col].idxmax()
+    best_row = all_results.results_df.loc[best_idx]
+    
+    best_k = best_row['k']
+    best_predictors = best_row['predictors']
+    best_ccram = best_row[metric_col]
+    
+    # Calculate rank within k
+    k_subsets = all_results.results_df[all_results.results_df['k'] == best_k].reset_index(drop=True)
+    rank_within_k = k_subsets[k_subsets[metric_col] == best_ccram].index[0] + 1
+    total_subsets_in_k = len(k_subsets)
+    
+    return BestSubsetCCRAMResult(
+        predictors=best_predictors,
+        response=response,
+        ccram=best_ccram,
+        k=best_k,
+        rank_within_k=rank_within_k,
+        total_subsets_in_k=total_subsets_in_k,
+        scaled=scaled,
+        all_results=all_results
+    )

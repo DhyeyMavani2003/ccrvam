@@ -8,9 +8,13 @@ from ccrvam.checkerboard.genstatsim import (
     bootstrap_predict_ccr_summary,
     permutation_test_ccram,
     save_predictions,
+    all_subsets_ccram,
+    best_subset_ccram,
+    SubsetCCRAMResult,
+    BestSubsetCCRAMResult,
 )
 
-__version__ = "1.1.9"
+__version__ = "1.2.0"
 __all__ = [
   "GenericCCRVAM",
   "DataProcessor",
@@ -20,4 +24,8 @@ __all__ = [
   "bootstrap_predict_ccr_summary",
   "save_predictions",
   "permutation_test_ccram",
+  "all_subsets_ccram",
+  "best_subset_ccram",
+  "SubsetCCRAMResult",
+  "BestSubsetCCRAMResult",
 ]

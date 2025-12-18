@@ -5,7 +5,11 @@ from ccrvam import (
     bootstrap_ccram, 
     permutation_test_ccram, 
     save_predictions,
-    bootstrap_predict_ccr_summary, 
+    bootstrap_predict_ccr_summary,
+    all_subsets_ccram,
+    best_subset_ccram,
+    SubsetCCRAMResult,
+    BestSubsetCCRAMResult,
 )
 from ccrvam.checkerboard.genstatsim import (
     CustomBootstrapResult,
@@ -1437,3 +1441,523 @@ def test_plot_predictions_summary_zero_count_show_indep_line(table_with_zero_cou
     
     assert isinstance(fig, plt.Figure)
     plt.close(fig)
+
+
+# =============================================================================
+# Tests for all_subsets_ccram and best_subset_ccram
+# =============================================================================
+
+@pytest.fixture
+def table_2d():
+    """Fixture for 2D contingency table."""
+    return np.array([
+        [10, 5, 2],
+        [3, 15, 8],
+        [1, 4, 12]
+    ])
+
+
+@pytest.fixture
+def table_3d():
+    """Fixture for 3D contingency table."""
+    return np.array([
+        [[5, 2], [3, 8]],
+        [[2, 7], [6, 4]],
+        [[1, 3], [4, 9]]
+    ])
+
+
+class TestAllSubsetsCCRAM:
+    """Tests for all_subsets_ccram function."""
+    
+    def test_basic_2d_ccram(self, table_2d):
+        """Test basic functionality with 2D table and CCRAM."""
+        result = all_subsets_ccram(table_2d, response=2, scaled=False)
+        
+        assert isinstance(result, SubsetCCRAMResult)
+        assert isinstance(result.results_df, pd.DataFrame)
+        assert result.response == 2
+        assert result.n_dimensions == 2
+        assert result.scaled is False
+        assert result.metric_column == 'ccram'
+        
+        # Check DataFrame columns
+        assert 'k' in result.results_df.columns
+        assert 'predictors' in result.results_df.columns
+        assert 'response' in result.results_df.columns
+        assert 'ccram' in result.results_df.columns
+        assert 'sccram' not in result.results_df.columns
+        
+        # For 2D table with response=2, only k=1 with predictor X1 is possible
+        assert len(result.results_df) == 1
+        assert result.results_df.iloc[0]['k'] == 1
+        assert result.results_df.iloc[0]['predictors'] == (1,)
+    
+    def test_basic_2d_sccram(self, table_2d):
+        """Test basic functionality with 2D table and SCCRAM."""
+        result = all_subsets_ccram(table_2d, response=2, scaled=True)
+        
+        assert result.scaled is True
+        assert result.metric_column == 'sccram'
+        assert 'sccram' in result.results_df.columns
+        assert 'ccram' not in result.results_df.columns
+    
+    def test_basic_3d_ccram(self, table_3d):
+        """Test basic functionality with 3D table and CCRAM."""
+        result = all_subsets_ccram(table_3d, response=3, scaled=False)
+        
+        assert result.n_dimensions == 3
+        assert result.scaled is False
+        
+        # For 3D table with response=3: k=1 has 2 subsets (X1, X2), k=2 has 1 subset (X1,X2)
+        assert len(result.results_df) == 3
+        
+        # Check k=1 subsets
+        k1_subsets = result.results_df[result.results_df['k'] == 1]
+        assert len(k1_subsets) == 2
+        
+        # Check k=2 subsets
+        k2_subsets = result.results_df[result.results_df['k'] == 2]
+        assert len(k2_subsets) == 1
+        assert k2_subsets.iloc[0]['predictors'] == (1, 2)
+    
+    def test_basic_4d_ccram(self, table_4d):
+        """Test basic functionality with 4D table and CCRAM."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=False)
+        
+        assert result.n_dimensions == 4
+        assert result.scaled is False
+        
+        # For 4D table with response=4:
+        # k=1: 3 subsets (X1, X2, X3)
+        # k=2: 3 subsets (X1,X2), (X1,X3), (X2,X3)
+        # k=3: 1 subset (X1,X2,X3)
+        # Total: 7 subsets
+        assert len(result.results_df) == 7
+        
+        k1_subsets = result.results_df[result.results_df['k'] == 1]
+        k2_subsets = result.results_df[result.results_df['k'] == 2]
+        k3_subsets = result.results_df[result.results_df['k'] == 3]
+        
+        assert len(k1_subsets) == 3
+        assert len(k2_subsets) == 3
+        assert len(k3_subsets) == 1
+    
+    def test_basic_4d_sccram(self, table_4d):
+        """Test basic functionality with 4D table and SCCRAM."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        assert result.scaled is True
+        assert result.metric_column == 'sccram'
+        assert 'sccram' in result.results_df.columns
+        
+        # Values should be different from CCRAM
+        result_ccram = all_subsets_ccram(table_4d, response=4, scaled=False)
+        
+        # Compare same predictor combination
+        sccram_val = result.results_df[result.results_df['predictors'] == (1, 2, 3)]['sccram'].values[0]
+        ccram_val = result_ccram.results_df[result_ccram.results_df['predictors'] == (1, 2, 3)]['ccram'].values[0]
+        
+        # SCCRAM and CCRAM should be different (unless variance is 1)
+        assert sccram_val != ccram_val or np.isclose(sccram_val, ccram_val, rtol=0.01)
+    
+    def test_4d_with_specific_k(self, table_4d):
+        """Test with specific k value in 4D table."""
+        # Test k=1
+        result_k1 = all_subsets_ccram(table_4d, response=4, k=1)
+        assert len(result_k1.results_df) == 3
+        assert all(result_k1.results_df['k'] == 1)
+        
+        # Test k=2
+        result_k2 = all_subsets_ccram(table_4d, response=4, k=2)
+        assert len(result_k2.results_df) == 3
+        assert all(result_k2.results_df['k'] == 2)
+        
+        # Test k=3
+        result_k3 = all_subsets_ccram(table_4d, response=4, k=3)
+        assert len(result_k3.results_df) == 1
+        assert all(result_k3.results_df['k'] == 3)
+    
+    def test_4d_different_response_axes(self, table_4d):
+        """Test with different response axes in 4D table."""
+        # Response = X1
+        result_r1 = all_subsets_ccram(table_4d, response=1)
+        assert result_r1.response == 1
+        assert len(result_r1.results_df) == 7  # k=1: 3, k=2: 3, k=3: 1
+        
+        # Predictors should be X2, X3, X4
+        all_preds = set()
+        for preds in result_r1.results_df['predictors']:
+            all_preds.update(preds)
+        assert all_preds == {2, 3, 4}
+        
+        # Response = X2
+        result_r2 = all_subsets_ccram(table_4d, response=2)
+        assert result_r2.response == 2
+        
+        # Predictors should be X1, X3, X4
+        all_preds = set()
+        for preds in result_r2.results_df['predictors']:
+            all_preds.update(preds)
+        assert all_preds == {1, 3, 4}
+    
+    def test_with_variable_names(self, table_4d):
+        """Test with custom variable names."""
+        var_names = {1: 'Age', 2: 'Income', 3: 'Education', 4: 'Satisfaction'}
+        result = all_subsets_ccram(table_4d, response=4, variable_names=var_names)
+        
+        assert 'predictor_names' in result.results_df.columns
+        
+        # Check that names are correctly assigned
+        row_with_all = result.results_df[result.results_df['k'] == 3].iloc[0]
+        assert row_with_all['predictor_names'] == ('Age', 'Income', 'Education')
+    
+    def test_sorting_within_k(self, table_4d):
+        """Test that results are sorted by metric descending within each k."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        # Check sorting within k=1
+        k1_values = result.results_df[result.results_df['k'] == 1]['sccram'].values
+        assert all(k1_values[i] >= k1_values[i+1] for i in range(len(k1_values)-1))
+        
+        # Check sorting within k=2
+        k2_values = result.results_df[result.results_df['k'] == 2]['sccram'].values
+        assert all(k2_values[i] >= k2_values[i+1] for i in range(len(k2_values)-1))
+    
+    def test_get_top_subsets(self, table_4d):
+        """Test get_top_subsets method."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        top_3 = result.get_top_subsets(3)
+        assert len(top_3) == 3
+        
+        # Should be sorted by sccram descending
+        assert all(top_3['sccram'].values[i] >= top_3['sccram'].values[i+1] 
+                   for i in range(len(top_3)-1))
+        
+        # Test getting more than available
+        top_10 = result.get_top_subsets(10)
+        assert len(top_10) == 7  # Only 7 subsets available
+    
+    def test_get_subsets_by_k(self, table_4d):
+        """Test get_subsets_by_k method."""
+        result = all_subsets_ccram(table_4d, response=4)
+        
+        k2_subsets = result.get_subsets_by_k(2)
+        assert len(k2_subsets) == 3
+        assert all(k2_subsets['k'] == 2)
+    
+    def test_summary_ccram(self, table_4d):
+        """Test summary method with CCRAM."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=False)
+        summary = result.summary()
+        
+        assert isinstance(summary, pd.DataFrame)
+        assert 'k' in summary.columns
+        assert 'max_ccram' in summary.columns
+        assert 'mean_ccram' in summary.columns
+        assert 'min_ccram' in summary.columns
+        assert 'n_subsets' in summary.columns
+        
+        # Check n_subsets
+        assert summary[summary['k'] == 1]['n_subsets'].values[0] == 3
+        assert summary[summary['k'] == 2]['n_subsets'].values[0] == 3
+        assert summary[summary['k'] == 3]['n_subsets'].values[0] == 1
+    
+    def test_summary_sccram(self, table_4d):
+        """Test summary method with SCCRAM."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        summary = result.summary()
+        
+        assert 'max_sccram' in summary.columns
+        assert 'mean_sccram' in summary.columns
+        assert 'min_sccram' in summary.columns
+        assert 'max_ccram' not in summary.columns
+    
+    def test_invalid_response_axis(self, table_4d):
+        """Test error handling for invalid response axis."""
+        with pytest.raises(ValueError, match="out of bounds"):
+            all_subsets_ccram(table_4d, response=5)
+        
+        with pytest.raises(ValueError, match="out of bounds"):
+            all_subsets_ccram(table_4d, response=0)
+    
+    def test_invalid_k_value(self, table_4d):
+        """Test error handling for invalid k value."""
+        with pytest.raises(ValueError, match="k must be at least 1"):
+            all_subsets_ccram(table_4d, response=4, k=0)
+        
+        with pytest.raises(ValueError, match="k must be less than"):
+            all_subsets_ccram(table_4d, response=4, k=4)
+    
+    def test_ccram_values_are_valid(self, table_4d):
+        """Test that CCRAM values are within valid range [0, 1]."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=False)
+        
+        assert all(result.results_df['ccram'] >= 0)
+        assert all(result.results_df['ccram'] <= 1)
+    
+    def test_sccram_values_are_valid(self, table_4d):
+        """Test that SCCRAM values are within valid range [0, 1]."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        assert all(result.results_df['sccram'] >= 0)
+        assert all(result.results_df['sccram'] <= 1)
+
+
+class TestBestSubsetCCRAM:
+    """Tests for best_subset_ccram function."""
+    
+    def test_basic_2d_ccram(self, table_2d):
+        """Test basic functionality with 2D table and CCRAM."""
+        result = best_subset_ccram(table_2d, response=2, scaled=False)
+        
+        assert isinstance(result, BestSubsetCCRAMResult)
+        assert result.response == 2
+        assert result.scaled is False
+        assert result.predictors == (1,)
+        assert result.k == 1
+        assert result.ccram >= 0
+        assert result.rank_within_k == 1
+        assert result.total_subsets_in_k == 1
+    
+    def test_basic_2d_sccram(self, table_2d):
+        """Test basic functionality with 2D table and SCCRAM."""
+        result = best_subset_ccram(table_2d, response=2, scaled=True)
+        
+        assert result.scaled is True
+        assert result.ccram >= 0
+    
+    def test_basic_4d_ccram(self, table_4d):
+        """Test basic functionality with 4D table and CCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=False)
+        
+        assert isinstance(result, BestSubsetCCRAMResult)
+        assert result.response == 4
+        assert result.scaled is False
+        assert result.ccram >= 0
+        assert isinstance(result.all_results, SubsetCCRAMResult)
+        
+        # Best subset should have highest CCRAM
+        max_ccram = result.all_results.results_df['ccram'].max()
+        assert result.ccram == max_ccram
+    
+    def test_basic_4d_sccram(self, table_4d):
+        """Test basic functionality with 4D table and SCCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=True)
+        
+        assert result.scaled is True
+        
+        # Best subset should have highest SCCRAM
+        max_sccram = result.all_results.results_df['sccram'].max()
+        assert result.ccram == max_sccram
+    
+    def test_4d_with_specific_k(self, table_4d):
+        """Test with specific k value in 4D table."""
+        # Test k=1
+        result_k1 = best_subset_ccram(table_4d, response=4, k=1)
+        assert result_k1.k == 1
+        assert len(result_k1.predictors) == 1
+        
+        # Test k=2
+        result_k2 = best_subset_ccram(table_4d, response=4, k=2)
+        assert result_k2.k == 2
+        assert len(result_k2.predictors) == 2
+        
+        # Test k=3
+        result_k3 = best_subset_ccram(table_4d, response=4, k=3)
+        assert result_k3.k == 3
+        assert len(result_k3.predictors) == 3
+        assert result_k3.predictors == (1, 2, 3)
+    
+    def test_repr_ccram(self, table_4d):
+        """Test __repr__ method with CCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=False)
+        repr_str = repr(result)
+        
+        assert 'BestSubsetCCRAMResult' in repr_str
+        assert 'CCRAM:' in repr_str
+        assert 'SCCRAM:' not in repr_str
+        assert 'Optimal Predictors:' in repr_str
+        assert 'Response: X4' in repr_str
+    
+    def test_repr_sccram(self, table_4d):
+        """Test __repr__ method with SCCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=True)
+        repr_str = repr(result)
+        
+        assert 'SCCRAM:' in repr_str
+    
+    def test_summary_df_ccram(self, table_4d):
+        """Test summary_df method with CCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=False)
+        summary = result.summary_df()
+        
+        assert isinstance(summary, pd.DataFrame)
+        assert 'metric' in summary.columns
+        assert 'value' in summary.columns
+        
+        metrics = summary['metric'].tolist()
+        assert 'CCRAM' in metrics
+        assert 'SCCRAM' not in metrics
+    
+    def test_summary_df_sccram(self, table_4d):
+        """Test summary_df method with SCCRAM."""
+        result = best_subset_ccram(table_4d, response=4, scaled=True)
+        summary = result.summary_df()
+        
+        metrics = summary['metric'].tolist()
+        assert 'SCCRAM' in metrics
+        assert 'CCRAM' not in metrics
+    
+    def test_with_variable_names(self, table_4d):
+        """Test with custom variable names."""
+        var_names = {1: 'Age', 2: 'Income', 3: 'Education', 4: 'Satisfaction'}
+        result = best_subset_ccram(table_4d, response=4, variable_names=var_names)
+        
+        # Variable names should be in all_results
+        assert 'predictor_names' in result.all_results.results_df.columns
+    
+    def test_rank_within_k(self, table_4d):
+        """Test rank_within_k is correctly computed."""
+        result = best_subset_ccram(table_4d, response=4)
+        
+        # The best subset should have rank 1 within its k
+        assert result.rank_within_k >= 1
+        assert result.rank_within_k <= result.total_subsets_in_k
+    
+    def test_all_results_access(self, table_4d):
+        """Test that all_results provides full access to subset data."""
+        result = best_subset_ccram(table_4d, response=4)
+        
+        all_results = result.all_results
+        assert isinstance(all_results, SubsetCCRAMResult)
+        assert len(all_results.results_df) == 7
+    
+    def test_invalid_response_axis(self, table_4d):
+        """Test error handling for invalid response axis."""
+        with pytest.raises(ValueError, match="out of bounds"):
+            best_subset_ccram(table_4d, response=5)
+    
+    def test_invalid_k_value(self, table_4d):
+        """Test error handling for invalid k value."""
+        with pytest.raises(ValueError, match="k must be at least 1"):
+            best_subset_ccram(table_4d, response=4, k=0)
+
+
+class TestSubsetCCRAMConsistency:
+    """Tests for consistency between all_subsets_ccram and best_subset_ccram."""
+    
+    def test_best_matches_all_subsets(self, table_4d):
+        """Test that best_subset_ccram returns the same best as all_subsets_ccram."""
+        all_result = all_subsets_ccram(table_4d, response=4)
+        best_result = best_subset_ccram(table_4d, response=4)
+        
+        # Find best from all_result
+        best_from_all = all_result.results_df.loc[all_result.results_df['ccram'].idxmax()]
+        
+        assert best_result.predictors == best_from_all['predictors']
+        assert best_result.ccram == best_from_all['ccram']
+    
+    def test_scaled_consistency(self, table_4d):
+        """Test consistency between scaled=True and scaled=False."""
+        result_ccram = all_subsets_ccram(table_4d, response=4, scaled=False)
+        result_sccram = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        # Same number of subsets
+        assert len(result_ccram.results_df) == len(result_sccram.results_df)
+        
+        # Same predictor combinations (in some order)
+        ccram_preds = set(result_ccram.results_df['predictors'].tolist())
+        sccram_preds = set(result_sccram.results_df['predictors'].tolist())
+        assert ccram_preds == sccram_preds
+    
+    def test_k_restriction_consistency(self, table_4d):
+        """Test that k restriction gives subset of full results."""
+        full_result = all_subsets_ccram(table_4d, response=4)
+        k2_result = all_subsets_ccram(table_4d, response=4, k=2)
+        
+        # k=2 results should be subset of full results
+        full_k2 = full_result.results_df[full_result.results_df['k'] == 2]
+        
+        assert len(k2_result.results_df) == len(full_k2)
+        
+        # Values should match
+        for _, row in k2_result.results_df.iterrows():
+            matching = full_k2[full_k2['predictors'] == row['predictors']]
+            assert len(matching) == 1
+            assert matching.iloc[0]['ccram'] == row['ccram']
+
+
+class TestSubsetCCRAMEdgeCases:
+    """Tests for edge cases in subset CCRAM functions."""
+    
+    def test_2d_table_single_predictor(self, table_2d):
+        """Test with 2D table where only one predictor is possible."""
+        result = all_subsets_ccram(table_2d, response=1)
+        
+        assert len(result.results_df) == 1
+        assert result.results_df.iloc[0]['predictors'] == (2,)
+        assert result.results_df.iloc[0]['k'] == 1
+    
+    def test_deterministic_table(self):
+        """Test with a deterministic (perfectly predictable) table."""
+        # Perfect relationship: X1 completely determines X2
+        deterministic_table = np.array([
+            [10, 0, 0],
+            [0, 10, 0],
+            [0, 0, 10]
+        ])
+        
+        result = all_subsets_ccram(deterministic_table, response=2, scaled=True)
+        
+        # SCCRAM should be close to 1 for perfect relationship
+        assert result.results_df.iloc[0]['sccram'] > 0.9
+    
+    def test_independent_table(self):
+        """Test with an independent (uniform) table."""
+        # Uniform distribution - no relationship
+        independent_table = np.ones((3, 3), dtype=int) * 10
+        
+        result = all_subsets_ccram(independent_table, response=2, scaled=False)
+        
+        # CCRAM should be close to 0 for independent relationship
+        assert result.results_df.iloc[0]['ccram'] < 0.1
+    
+    def test_large_k_4d(self, table_4d):
+        """Test that k cannot exceed ndim-1."""
+        # k=3 is maximum for 4D table
+        result = all_subsets_ccram(table_4d, response=4, k=3)
+        assert len(result.results_df) == 1
+        
+        # k=4 should raise error
+        with pytest.raises(ValueError):
+            all_subsets_ccram(table_4d, response=4, k=4)
+    
+    def test_metric_column_property(self, table_4d):
+        """Test metric_column property returns correct column name."""
+        result_ccram = all_subsets_ccram(table_4d, response=4, scaled=False)
+        result_sccram = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        assert result_ccram.metric_column == 'ccram'
+        assert result_sccram.metric_column == 'sccram'
+    
+    def test_variable_names_partial(self, table_4d):
+        """Test with partial variable names (some missing)."""
+        partial_names = {1: 'Var1', 3: 'Var3'}  # Missing 2 and 4
+        result = all_subsets_ccram(table_4d, response=4, variable_names=partial_names)
+        
+        # Should use default names for missing ones
+        row = result.results_df[result.results_df['predictors'] == (1, 2, 3)].iloc[0]
+        assert row['predictor_names'] == ('Var1', 'X2', 'Var3')
+    
+    def test_response_in_middle(self, table_4d):
+        """Test with response variable in middle position."""
+        result = all_subsets_ccram(table_4d, response=2)
+        
+        # Predictors should be X1, X3, X4 (not X2)
+        all_preds = set()
+        for preds in result.results_df['predictors']:
+            all_preds.update(preds)
+        assert 2 not in all_preds
+        assert all_preds == {1, 3, 4}
