@@ -658,6 +658,18 @@ def bootstrap_predict_ccr_summary(
                              (result / col_sums[:, np.newaxis].T) * 100, 
                              0)
     
+    # Detect zero-count combinations from the original table and mask them with NaN
+    # Calculate marginal PMF of predictors to detect zero-count combinations
+    sum_axes = tuple(set(range(table.ndim)) - set(parsed_predictors))
+    preds_marginal_pmf = table.sum(axis=sum_axes)
+    
+    # Set percentages to NaN for zero-count combinations
+    for j, combo in enumerate(pred_combinations):
+        # combo is 1-indexed, convert to 0-indexed for indexing
+        idx = tuple(c - 1 for c in combo)
+        if preds_marginal_pmf[idx] == 0:
+            percentages[:, j] = np.nan
+    
     # Create DataFrame
     summary_df = pd.DataFrame(percentages, index=rows, columns=columns)
     
@@ -798,7 +810,7 @@ def bootstrap_predict_ccr_summary(
             
             # Create a new array with the exact same order as shown in the bubble plot
             # We need to manually construct this in the same order
-            display_data = np.zeros_like(prediction_matrix_sorted.values)
+            display_data = np.zeros_like(prediction_matrix_sorted.values, dtype=float)
             
             # Map each row to its correct display position
             for i, idx in enumerate(prediction_matrix_sorted.index):
@@ -824,8 +836,19 @@ def bootstrap_predict_ccr_summary(
                 # Copy data to that position
                 display_data[display_pos] = prediction_matrix_sorted.iloc[i].values
             
+            # Create masked array to handle NaN values (they will be shown in a different color)
+            masked_data = np.ma.masked_invalid(display_data)
+            
             # Create heatmap with manually ordered data
-            im = ax.imshow(display_data, cmap=cmap, aspect='auto')
+            im = ax.imshow(masked_data, cmap=cmap, aspect='auto')
+            
+            # Add hatching for NaN (no data) columns
+            for j in range(n_cols):
+                if np.all(np.isnan(display_data[:, j])):
+                    # Add hatching pattern for no-data columns
+                    ax.add_patch(plt.Rectangle((j - 0.5, -0.5), 1, n_rows, 
+                                               fill=False, hatch='///', 
+                                               edgecolor='gray', linewidth=0.5))
             
             # Add text values if requested
             if show_values:
@@ -839,7 +862,7 @@ def bootstrap_predict_ccr_summary(
                         except (IndexError, ValueError):
                             # If that fails, try finding the last number in the string
                             import re
-                            match = re.search(r'(\d+)$', row_idx)
+                            match = re.search(r'(\d+)$', idx)
                             if match:
                                 category = int(match.group(1))
                             else:
@@ -851,6 +874,9 @@ def bootstrap_predict_ccr_summary(
                         display_pos = max(0, min(display_pos, n_rows - 1))
                         
                         value = prediction_matrix_sorted.iloc[i, j]
+                        # Skip NaN values (zero-count combinations)
+                        if pd.isna(value):
+                            continue
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
                             text_props = {
@@ -920,16 +946,32 @@ def bootstrap_predict_ccr_summary(
             sizes = values.flatten() * 100  # Scale up for better visibility
             colors = values.flatten()
             
-            # Create scatter plot with reversed y-axis order
-            scatter = ax.scatter(X.flatten(), (n_rows - 1 - Y).flatten(), 
-                               s=sizes, c=colors, cmap=cmap,
+            # Create mask for valid (non-NaN) values
+            valid_mask = ~np.isnan(colors)
+            
+            # Create scatter plot with reversed y-axis order, only for valid values
+            X_flat = X.flatten()
+            Y_flat = (n_rows - 1 - Y).flatten()
+            scatter = ax.scatter(X_flat[valid_mask], Y_flat[valid_mask], 
+                               s=sizes[valid_mask], c=colors[valid_mask], cmap=cmap,
                                alpha=0.6, edgecolors='black', linewidth=0.5)
+            
+            # Add hatching for NaN (no data) columns
+            for j in range(n_cols):
+                if np.all(np.isnan(values[:, j])):
+                    # Add hatching pattern for no-data columns
+                    ax.add_patch(plt.Rectangle((j - 0.5, -0.5), 1, n_rows, 
+                                               fill=False, hatch='///', 
+                                               edgecolor='gray', linewidth=0.5))
             
             # Add text values if requested
             if show_values:
                 for i in range(n_rows):
                     for j in range(n_cols):
                         value = prediction_matrix_sorted.iloc[i, j]
+                        # Skip NaN values (zero-count combinations)
+                        if pd.isna(value):
+                            continue
                         if value > 0:
                             text_color = 'white' if value > 50 else 'black'
                             text_props = {
@@ -1118,8 +1160,8 @@ def save_predictions(
         
         percentages = prediction_matrix[col].round(decimal_places)
         for idx, pct in percentages.items():
-            # Use the index name directly
-            output_data[col][idx] = pct
+            # Use the index name directly, convert NaN to 'NA' for display
+            output_data[col][idx] = 'NA' if pd.isna(pct) else pct
     
     # Save based on format
     if format.lower() == 'csv':

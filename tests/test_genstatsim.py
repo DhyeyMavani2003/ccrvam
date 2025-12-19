@@ -1203,7 +1203,7 @@ def test_bootstrap_predict_ccr_summary_zero_count_predictions(table_with_zero_co
 
 
 def test_bootstrap_predict_ccr_summary_zero_count_percentages(table_with_zero_count_combinations):
-    """Test that bootstrap percentages are still computed for zero-count combinations."""
+    """Test that bootstrap percentages are NaN for zero-count combinations and sum to 100 for valid ones."""
     summary_df = bootstrap_predict_ccr_summary(
         table_with_zero_count_combinations,
         predictors=[1, 2],
@@ -1218,8 +1218,14 @@ def test_bootstrap_predict_ccr_summary_zero_count_percentages(table_with_zero_co
     # Check that summary_df has values for all combinations
     assert len(summary_df) == 4  # 2x2 predictor combinations
     
-    # Percentages should sum to 100 for each column (approximately)
-    for col in summary_df.index:
+    # Zero-count combination (X1=1, X2=1) should have NaN percentages
+    zero_count_col = 'X1=1 X2=1'
+    assert summary_df.loc[zero_count_col].isna().all(), \
+        f"Zero-count combination {zero_count_col} should have all NaN percentages"
+    
+    # Non-zero-count combinations should have percentages that sum to ~100
+    non_zero_cols = ['X1=1 X2=2', 'X1=2 X2=1', 'X1=2 X2=2']
+    for col in non_zero_cols:
         col_sum = summary_df.loc[col].sum()
         assert abs(col_sum - 100.0) < 0.01, f"Column {col} should sum to ~100%, got {col_sum}"
 
