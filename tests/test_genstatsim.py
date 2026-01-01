@@ -1593,7 +1593,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X2, X3, X4
         all_preds = set()
-        for preds in result_r1.results_df['_predictors_tuple']:
+        for preds in result_r1._results_df_full['_predictors_tuple']:
             all_preds.update(preds)
         assert all_preds == {2, 3, 4}
         
@@ -1603,7 +1603,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X1, X3, X4
         all_preds = set()
-        for preds in result_r2.results_df['_predictors_tuple']:
+        for preds in result_r2._results_df_full['_predictors_tuple']:
             all_preds.update(preds)
         assert all_preds == {1, 3, 4}
     
@@ -1631,10 +1631,11 @@ class TestAllSubsetsCCRAM:
         assert all(k2_values[i] >= k2_values[i+1] for i in range(len(k2_values)-1))
     
     def test_get_top_subsets(self, table_4d):
-        """Test get_top_subsets method."""
+        """Test get_top_subsets method with renamed 'top' parameter."""
         result = all_subsets_ccram(table_4d, response=4, scaled=True)
         
-        top_3 = result.get_top_subsets(3)
+        # Test with keyword argument 'top'
+        top_3 = result.get_top_subsets(top=3)
         assert len(top_3) == 3
         
         # Should be sorted by sccram descending
@@ -1642,8 +1643,60 @@ class TestAllSubsetsCCRAM:
                    for i in range(len(top_3)-1))
         
         # Test getting more than available
-        top_10 = result.get_top_subsets(10)
+        top_10 = result.get_top_subsets(top=10)
         assert len(top_10) == 7  # Only 7 subsets available
+        
+        # Test with positional argument (backward compatibility)
+        top_2 = result.get_top_subsets(2)
+        assert len(top_2) == 2
+    
+    def test_get_top_subsets_per_k(self, table_4d):
+        """Test get_top_subsets_per_k method for getting top subsets for each k."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        # Get top 2 subsets for each k
+        top_per_k = result.get_top_subsets_per_k(top=2)
+        
+        # For 4D table with response=4:
+        # k=1: 3 possible subsets (X1, X2, X3) -> returns top 2
+        # k=2: 3 possible pairs -> returns top 2
+        # k=3: 1 possible triplet -> returns 1 (less than requested 2)
+        assert len(top_per_k) == 5  # 2 + 2 + 1 = 5
+        
+        # Verify we have correct number for each k
+        assert len(top_per_k[top_per_k['k'] == 1]) == 2
+        assert len(top_per_k[top_per_k['k'] == 2]) == 2
+        assert len(top_per_k[top_per_k['k'] == 3]) == 1
+        
+        # Verify sorting within each k (descending by sccram)
+        for k in [1, 2]:
+            k_data = top_per_k[top_per_k['k'] == k]['sccram'].values
+            assert all(k_data[i] >= k_data[i+1] for i in range(len(k_data)-1))
+    
+    def test_get_top_subsets_per_k_exceeds_available(self, table_4d):
+        """Test get_top_subsets_per_k when top exceeds available combinations."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        # Request top 10, but k=1 has only 3, k=2 has only 3, k=3 has only 1
+        top_per_k = result.get_top_subsets_per_k(top=10)
+        
+        # Should return all available: 3 + 3 + 1 = 7
+        assert len(top_per_k) == 7
+        assert len(top_per_k[top_per_k['k'] == 1]) == 3
+        assert len(top_per_k[top_per_k['k'] == 2]) == 3
+        assert len(top_per_k[top_per_k['k'] == 3]) == 1
+    
+    def test_get_top_subsets_per_k_default(self, table_4d):
+        """Test get_top_subsets_per_k with default top=3."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        
+        # Default is top=3
+        top_per_k = result.get_top_subsets_per_k()
+        
+        # k=1: 3 available, returns 3
+        # k=2: 3 available, returns 3  
+        # k=3: 1 available, returns 1
+        assert len(top_per_k) == 7
     
     def test_get_subsets_by_k(self, table_4d):
         """Test get_subsets_by_k method."""
@@ -1860,7 +1913,7 @@ class TestSubsetCCRAMConsistency:
         best_result = best_subset_ccram(table_4d, response=4)
         
         # Find best from all_result
-        best_from_all = all_result.results_df.loc[all_result.results_df['ccram'].idxmax()]
+        best_from_all = all_result._results_df_full.loc[all_result._results_df_full['ccram'].idxmax()]
         
         assert best_result.predictors == best_from_all['_predictors_tuple']
         assert best_result.ccram == best_from_all['ccram']
@@ -1963,7 +2016,7 @@ class TestSubsetCCRAMEdgeCases:
         
         # Predictors should be X1, X3, X4 (not X2)
         all_preds = set()
-        for preds in result.results_df['_predictors_tuple']:
+        for preds in result._results_df_full['_predictors_tuple']:
             all_preds.update(preds)
         assert 2 not in all_preds
         assert all_preds == {1, 3, 4}
@@ -2001,39 +2054,6 @@ class TestPlotSubsets:
         np.testing.assert_array_almost_equal(fig.get_size_inches(), custom_figsize)
         plt.close('all')
     
-    def test_plot_subsets_show_options(self, table_4d):
-        """Test plot_subsets with different show options."""
-        result = all_subsets_ccram(table_4d, response=4)
-        
-        # Test with all show options disabled
-        fig, ax = result.plot_subsets(
-            show_best_per_k=False,
-            show_best_overall=False,
-            show_mean_line=False
-        )
-        assert fig is not None
-        plt.close('all')
-        
-        # Test with all show options enabled
-        fig, ax = result.plot_subsets(
-            show_best_per_k=True,
-            show_best_overall=True,
-            show_mean_line=True
-        )
-        assert fig is not None
-        plt.close('all')
-    
-    def test_plot_subsets_mean_line(self, table_4d):
-        """Test plot_subsets with mean line enabled."""
-        result = all_subsets_ccram(table_4d, response=4)
-        fig, ax = result.plot_subsets(show_mean_line=True)
-        
-        # Check that there are line plots (mean line)
-        lines = [child for child in ax.get_children() 
-                if isinstance(child, plt.Line2D) and len(child.get_xdata()) > 1]
-        assert len(lines) > 0
-        plt.close('all')
-    
     def test_plot_subsets_font_customization(self, table_4d):
         """Test plot_subsets font size customization."""
         result = all_subsets_ccram(table_4d, response=4)
@@ -2042,7 +2062,7 @@ class TestPlotSubsets:
             xlabel_fontsize=14,
             ylabel_fontsize=12,
             tick_fontsize=10,
-            legend_fontsize=9
+            label_fontsize=9
         )
         
         assert fig is not None
@@ -2057,27 +2077,12 @@ class TestPlotSubsets:
         assert ax.get_title() == custom_title
         plt.close('all')
     
-    def test_plot_subsets_jitter(self, table_4d):
-        """Test plot_subsets with different jitter values."""
-        result = all_subsets_ccram(table_4d, response=4)
-        
-        # Test with no jitter
-        fig, ax = result.plot_subsets(jitter=0)
-        assert fig is not None
-        plt.close('all')
-        
-        # Test with large jitter
-        fig, ax = result.plot_subsets(jitter=0.3)
-        assert fig is not None
-        plt.close('all')
-    
     def test_plot_subsets_point_customization(self, table_4d):
         """Test plot_subsets point customization."""
         result = all_subsets_ccram(table_4d, response=4)
         fig, ax = result.plot_subsets(
             point_size=100,
-            point_alpha=0.8,
-            cmap='plasma'
+            point_color='red'
         )
         
         assert fig is not None
@@ -2162,3 +2167,15 @@ class TestPlotSubsets:
             
             assert f'X{response}' in ax.get_title()
             plt.close('all')
+    
+    def test_plot_subsets_has_labels(self, table_4d):
+        """Test that plot_subsets shows labels for best subsets per k."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets()
+        
+        # Check that annotations exist (one for each k)
+        annotations = [child for child in ax.get_children() 
+                      if isinstance(child, plt.Annotation)]
+        k_values = result.results_df['k'].unique()
+        assert len(annotations) == len(k_values)
+        plt.close('all')

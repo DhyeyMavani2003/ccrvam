@@ -1607,29 +1607,103 @@ class SubsetCCRAMResult:
     - `n_dimensions` : Total number of dimensions in the contingency table
     - `scaled` : Whether scaled CCRAM (SCCRAM) was used
     """
-    results_df: pd.DataFrame
+    _results_df_full: pd.DataFrame
     response: int
     n_dimensions: int
     scaled: bool
+    
+    @property
+    def results_df(self) -> pd.DataFrame:
+        """Return the results DataFrame with internal columns hidden."""
+        display_cols = [col for col in self._results_df_full.columns if not col.startswith('_')]
+        return self._results_df_full[display_cols]
     
     @property
     def metric_column(self) -> str:
         """Return the column name for the metric based on scaled parameter."""
         return 'sccram' if self.scaled else 'ccram'
     
-    def get_top_subsets(self, n: int = 5) -> pd.DataFrame:
+    def _filter_display_columns(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Filter out internal columns (starting with '_') from a DataFrame."""
+        display_cols = [col for col in df.columns if not col.startswith('_')]
+        return df[display_cols]
+    
+    def get_top_subsets(self, top: int = 5) -> pd.DataFrame:
         """
-        Get the top n subsets with highest (S)CCRAM values.
+        Get the top subsets with highest (S)CCRAM values across all predictor sizes.
+        
+        This method returns the subsets with the highest (S)CCRAM values globally,
+        regardless of the number of predictors (k) in each subset.
         
         Input Arguments
         --------------
-        - `n` : Number of top subsets to return (default=5)
+        - `top` : Number of top subsets to return (default=5)
         
         Outputs
         -------
-        DataFrame with top n subsets sorted by (S)CCRAM value
+        DataFrame with top subsets sorted by (S)CCRAM value (highest first)
+        
+        Example
+        -------
+        >>> result = all_subsets_ccram(table, response=4)
+        >>> result.get_top_subsets(top=3)  # Get 3 best subsets overall
         """
-        return self.results_df.nlargest(n, self.metric_column).reset_index(drop=True)
+        result = self._results_df_full.nlargest(top, self.metric_column).reset_index(drop=True)
+        return self._filter_display_columns(result)
+    
+    def get_top_subsets_per_k(self, top: int = 3) -> pd.DataFrame:
+        """
+        Get the top subsets with highest (S)CCRAM values for each predictor size k.
+        
+        This method returns the top `top` subsets for EACH value of k (number of predictors),
+        from k=1 up to k=D (where D is the total number of available predictors).
+        This is useful when users want to compare the best predictor combinations
+        within each subset size.
+        
+        Input Arguments
+        --------------
+        - `top` : Number of top subsets to return for each k value (default=3).
+                 If `top` exceeds the number of possible combinations for a given k
+                 (i.e., top > C(D,k) where D is total predictors), all combinations
+                 for that k are returned.
+        
+        Outputs
+        -------
+        DataFrame with top subsets for each k, sorted by k ascending and (S)CCRAM 
+        descending within each k. Includes all columns from results_df.
+        
+        Example
+        -------
+        >>> # With 5 predictors (D=5), get top 3 subsets for each k
+        >>> result = all_subsets_ccram(table, response=6)  # 6-dim table, predict X6
+        >>> top_per_k = result.get_top_subsets_per_k(top=3)
+        >>> # Returns:
+        >>> # - For k=1: top 3 single predictors (or all 5 if fewer requested)
+        >>> # - For k=2: top 3 pairs from C(5,2)=10 possible pairs
+        >>> # - For k=3: top 3 triplets from C(5,3)=10 possible triplets
+        >>> # - For k=4: top 3 from C(5,4)=5 possible (returns all 5 since 5 > 3 is False)
+        >>> # - For k=5: top 1 from C(5,5)=1 possible (only 1 exists)
+        """
+        col = self.metric_column
+        
+        # Get unique k values
+        k_values = sorted(self._results_df_full['k'].unique())
+        
+        # Collect top subsets for each k
+        result_dfs = []
+        for k in k_values:
+            k_data = self._results_df_full[self._results_df_full['k'] == k]
+            # Get top subsets for this k (nlargest handles cases where top > len(k_data))
+            top_k = k_data.nlargest(top, col)
+            result_dfs.append(top_k)
+        
+        # Combine all results
+        if result_dfs:
+            combined = pd.concat(result_dfs, ignore_index=True)
+        else:
+            combined = self._results_df_full.iloc[:0].copy()  # Empty DataFrame with same columns
+        
+        return self._filter_display_columns(combined)
     
     def get_subsets_by_k(self, k: int) -> pd.DataFrame:
         """
@@ -1643,7 +1717,8 @@ class SubsetCCRAMResult:
         -------
         DataFrame with subsets having k predictors, sorted by (S)CCRAM
         """
-        return self.results_df[self.results_df['k'] == k].reset_index(drop=True)
+        result = self._results_df_full[self._results_df_full['k'] == k].reset_index(drop=True)
+        return self._filter_display_columns(result)
     
     def summary(self) -> pd.DataFrame:
         """
@@ -1654,26 +1729,21 @@ class SubsetCCRAMResult:
         DataFrame with summary statistics (max, mean, min, count) for each k
         """
         col = self.metric_column
-        summary = self.results_df.groupby('k')[col].agg(['max', 'mean', 'min', 'count'])
+        summary = self._results_df_full.groupby('k')[col].agg(['max', 'mean', 'min', 'count'])
         summary.columns = [f'max_{col}', f'mean_{col}', f'min_{col}', 'n_subsets']
         return summary.reset_index()
     
     def plot_subsets(
         self,
         figsize: Optional[Tuple[int, int]] = None,
-        show_best_per_k: bool = True,
-        show_best_overall: bool = True,
-        show_mean_line: bool = False,
-        jitter: float = 0.15,
-        point_size: int = 60,
-        point_alpha: float = 0.6,
-        cmap: str = 'viridis',
+        point_size: int = 80,
+        point_color: str = 'steelblue',
         title: Optional[str] = None,
         title_fontsize: Optional[int] = None,
         xlabel_fontsize: Optional[int] = None,
         ylabel_fontsize: Optional[int] = None,
         tick_fontsize: Optional[int] = None,
-        legend_fontsize: Optional[int] = None,
+        label_fontsize: Optional[int] = None,
         save_path: Optional[str] = None,
         dpi: int = 300,
         **kwargs
@@ -1682,24 +1752,20 @@ class SubsetCCRAMResult:
         Plot all subset (S)CCRAM values against the number of predictors (k).
         
         This visualization helps identify patterns across different subset sizes and
-        aids in deciding which k value to focus on for detailed analysis.
+        aids in deciding which k value to focus on for detailed analysis. The best
+        subset for each k is labeled with its predictor combination.
         
         Input Arguments
         --------------
         - `figsize` : Figure size as (width, height) tuple (optional, default=(10, 6))
-        - `show_best_per_k` : Whether to highlight the best subset for each k with a star marker (default=True)
-        - `show_best_overall` : Whether to highlight the overall best subset with a red edge (default=True)
-        - `show_mean_line` : Whether to show a line connecting mean values for each k (default=False)
-        - `jitter` : Amount of horizontal jitter to apply for better visibility (default=0.15)
-        - `point_size` : Size of scatter points (default=60)
-        - `point_alpha` : Transparency of scatter points (default=0.6)
-        - `cmap` : Colormap for points colored by k value (default='viridis')
+        - `point_size` : Size of scatter points (default=80)
+        - `point_color` : Color for scatter points (default='steelblue')
         - `title` : Custom title for the plot (optional)
         - `title_fontsize` : Font size for the plot title (optional)
         - `xlabel_fontsize` : Font size for x-axis label (optional)
         - `ylabel_fontsize` : Font size for y-axis label (optional)
         - `tick_fontsize` : Font size for axis tick labels (optional)
-        - `legend_fontsize` : Font size for legend (optional)
+        - `label_fontsize` : Font size for labels on best subsets (optional)
         - `save_path` : Path to save the plot (optional)
         - `dpi` : Resolution for saved image (default=300)
         - `**kwargs` : Additional matplotlib arguments passed to plt.subplots()
@@ -1711,7 +1777,7 @@ class SubsetCCRAMResult:
         Example
         -------
         >>> result = all_subsets_ccram(table, response=4)
-        >>> fig, ax = result.plot_subsets(show_mean_line=True)
+        >>> fig, ax = result.plot_subsets()
         >>> plt.show()
         """
         if figsize is None:
@@ -1723,70 +1789,38 @@ class SubsetCCRAMResult:
         metric_label = "SCCRAM" if self.scaled else "CCRAM"
         
         # Get unique k values
-        k_values = sorted(self.results_df['k'].unique())
+        k_values = sorted(self._results_df_full['k'].unique())
         
-        # Add jitter to k values for better visualization
-        np.random.seed(42)  # For reproducibility
-        k_jittered = self.results_df['k'] + np.random.uniform(-jitter, jitter, len(self.results_df))
-        
-        # Create scatter plot with color based on k
-        scatter = ax.scatter(
-            k_jittered,
-            self.results_df[col],
-            c=self.results_df['k'],
-            cmap=cmap,
+        # Plot all points at their exact k values
+        ax.scatter(
+            self._results_df_full['k'],
+            self._results_df_full[col],
             s=point_size,
-            alpha=point_alpha,
+            c=point_color,
             edgecolors='white',
             linewidth=0.5,
-            label='All subsets'
+            zorder=5
         )
         
-        # Highlight best subset for each k
-        if show_best_per_k:
-            for k in k_values:
-                k_data = self.results_df[self.results_df['k'] == k]
-                best_idx = k_data[col].idxmax()
-                best_value = k_data.loc[best_idx, col]
-                ax.scatter(
-                    k, best_value,
-                    marker='*',
-                    s=point_size * 3,
-                    c='gold',
-                    edgecolors='black',
-                    linewidth=1,
-                    zorder=10,
-                    label='Best per k' if k == k_values[0] else None
-                )
-        
-        # Highlight overall best subset
-        if show_best_overall:
-            best_overall_idx = self.results_df[col].idxmax()
-            best_overall_row = self.results_df.loc[best_overall_idx]
-            ax.scatter(
-                best_overall_row['k'],
-                best_overall_row[col],
-                marker='o',
-                s=point_size * 2.5,
-                facecolors='none',
-                edgecolors='red',
-                linewidth=2.5,
-                zorder=11,
-                label=f'Best overall: {best_overall_row["predictors"]}'
-            )
-        
-        # Show mean line connecting k values
-        if show_mean_line:
-            means = self.results_df.groupby('k')[col].mean()
-            ax.plot(
-                means.index,
-                means.values,
-                'o-',
-                color='darkblue',
-                linewidth=2,
-                markersize=8,
-                label='Mean per k',
-                zorder=5
+        # Add labels for the best subset at each k
+        label_fs = label_fontsize if label_fontsize is not None else 9
+        for k in k_values:
+            k_data = self._results_df_full[self._results_df_full['k'] == k]
+            best_idx = k_data[col].idxmax()
+            best_row = k_data.loc[best_idx]
+            best_value = best_row[col]
+            best_predictors = best_row['predictors']
+            
+            # Add label above the best point
+            ax.annotate(
+                best_predictors,
+                xy=(k, best_value),
+                xytext=(0, 8),
+                textcoords='offset points',
+                ha='center',
+                va='bottom',
+                fontsize=label_fs,
+                fontweight='bold'
             )
         
         # Set axis labels
@@ -1816,17 +1850,6 @@ class SubsetCCRAMResult:
         # Set x-axis to show only integer k values
         ax.set_xticks(k_values)
         ax.set_xlim(min(k_values) - 0.5, max(k_values) + 0.5)
-        
-        # Add colorbar
-        cbar = plt.colorbar(scatter, ax=ax)
-        cbar.set_label('k', fontsize=xlabel_fontsize if xlabel_fontsize else 10)
-        cbar.set_ticks(k_values)
-        
-        # Add legend
-        legend_props = {'loc': 'best'}
-        if legend_fontsize is not None:
-            legend_props['fontsize'] = legend_fontsize
-        ax.legend(**legend_props)
         
         # Add grid for better readability
         ax.grid(True, alpha=0.3, linestyle='--')
@@ -2032,7 +2055,7 @@ def all_subsets_ccram(
     ).reset_index(drop=True)
     
     return SubsetCCRAMResult(
-        results_df=results_df,
+        _results_df_full=results_df,
         response=response,
         n_dimensions=ndim,
         scaled=scaled
@@ -2104,16 +2127,16 @@ def best_subset_ccram(
     # Get the metric column name
     metric_col = all_results.metric_column
     
-    # Find the best subset (highest (S)CCRAM)
-    best_idx = all_results.results_df[metric_col].idxmax()
-    best_row = all_results.results_df.loc[best_idx]
+    # Find the best subset (highest (S)CCRAM) - use internal DataFrame for programmatic access
+    best_idx = all_results._results_df_full[metric_col].idxmax()
+    best_row = all_results._results_df_full.loc[best_idx]
     
     best_k = best_row['k']
     best_predictors = best_row['_predictors_tuple']  # Use internal tuple for programmatic access
     best_ccram = best_row[metric_col]
     
     # Calculate rank within k
-    k_subsets = all_results.results_df[all_results.results_df['k'] == best_k].reset_index(drop=True)
+    k_subsets = all_results._results_df_full[all_results._results_df_full['k'] == best_k].reset_index(drop=True)
     rank_within_k = k_subsets[k_subsets[metric_col] == best_ccram].index[0] + 1
     total_subsets_in_k = len(k_subsets)
     
