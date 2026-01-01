@@ -1657,6 +1657,190 @@ class SubsetCCRAMResult:
         summary = self.results_df.groupby('k')[col].agg(['max', 'mean', 'min', 'count'])
         summary.columns = [f'max_{col}', f'mean_{col}', f'min_{col}', 'n_subsets']
         return summary.reset_index()
+    
+    def plot_subsets(
+        self,
+        figsize: Optional[Tuple[int, int]] = None,
+        show_best_per_k: bool = True,
+        show_best_overall: bool = True,
+        show_mean_line: bool = False,
+        jitter: float = 0.15,
+        point_size: int = 60,
+        point_alpha: float = 0.6,
+        cmap: str = 'viridis',
+        title: Optional[str] = None,
+        title_fontsize: Optional[int] = None,
+        xlabel_fontsize: Optional[int] = None,
+        ylabel_fontsize: Optional[int] = None,
+        tick_fontsize: Optional[int] = None,
+        legend_fontsize: Optional[int] = None,
+        save_path: Optional[str] = None,
+        dpi: int = 300,
+        **kwargs
+    ) -> Tuple[plt.Figure, plt.Axes]:
+        """
+        Plot all subset (S)CCRAM values against the number of predictors (k).
+        
+        This visualization helps identify patterns across different subset sizes and
+        aids in deciding which k value to focus on for detailed analysis.
+        
+        Input Arguments
+        --------------
+        - `figsize` : Figure size as (width, height) tuple (optional, default=(10, 6))
+        - `show_best_per_k` : Whether to highlight the best subset for each k with a star marker (default=True)
+        - `show_best_overall` : Whether to highlight the overall best subset with a red edge (default=True)
+        - `show_mean_line` : Whether to show a line connecting mean values for each k (default=False)
+        - `jitter` : Amount of horizontal jitter to apply for better visibility (default=0.15)
+        - `point_size` : Size of scatter points (default=60)
+        - `point_alpha` : Transparency of scatter points (default=0.6)
+        - `cmap` : Colormap for points colored by k value (default='viridis')
+        - `title` : Custom title for the plot (optional)
+        - `title_fontsize` : Font size for the plot title (optional)
+        - `xlabel_fontsize` : Font size for x-axis label (optional)
+        - `ylabel_fontsize` : Font size for y-axis label (optional)
+        - `tick_fontsize` : Font size for axis tick labels (optional)
+        - `legend_fontsize` : Font size for legend (optional)
+        - `save_path` : Path to save the plot (optional)
+        - `dpi` : Resolution for saved image (default=300)
+        - `**kwargs` : Additional matplotlib arguments passed to plt.subplots()
+        
+        Outputs
+        -------
+        Tuple of (Figure, Axes) matplotlib objects
+        
+        Example
+        -------
+        >>> result = all_subsets_ccram(table, response=4)
+        >>> fig, ax = result.plot_subsets(show_mean_line=True)
+        >>> plt.show()
+        """
+        if figsize is None:
+            figsize = (10, 6)
+        
+        fig, ax = plt.subplots(figsize=figsize, **kwargs)
+        
+        col = self.metric_column
+        metric_label = "SCCRAM" if self.scaled else "CCRAM"
+        
+        # Get unique k values
+        k_values = sorted(self.results_df['k'].unique())
+        
+        # Add jitter to k values for better visualization
+        np.random.seed(42)  # For reproducibility
+        k_jittered = self.results_df['k'] + np.random.uniform(-jitter, jitter, len(self.results_df))
+        
+        # Create scatter plot with color based on k
+        scatter = ax.scatter(
+            k_jittered,
+            self.results_df[col],
+            c=self.results_df['k'],
+            cmap=cmap,
+            s=point_size,
+            alpha=point_alpha,
+            edgecolors='white',
+            linewidth=0.5,
+            label='All subsets'
+        )
+        
+        # Highlight best subset for each k
+        if show_best_per_k:
+            for k in k_values:
+                k_data = self.results_df[self.results_df['k'] == k]
+                best_idx = k_data[col].idxmax()
+                best_value = k_data.loc[best_idx, col]
+                ax.scatter(
+                    k, best_value,
+                    marker='*',
+                    s=point_size * 3,
+                    c='gold',
+                    edgecolors='black',
+                    linewidth=1,
+                    zorder=10,
+                    label='Best per k' if k == k_values[0] else None
+                )
+        
+        # Highlight overall best subset
+        if show_best_overall:
+            best_overall_idx = self.results_df[col].idxmax()
+            best_overall_row = self.results_df.loc[best_overall_idx]
+            ax.scatter(
+                best_overall_row['k'],
+                best_overall_row[col],
+                marker='o',
+                s=point_size * 2.5,
+                facecolors='none',
+                edgecolors='red',
+                linewidth=2.5,
+                zorder=11,
+                label=f'Best overall: {best_overall_row["predictors"]}'
+            )
+        
+        # Show mean line connecting k values
+        if show_mean_line:
+            means = self.results_df.groupby('k')[col].mean()
+            ax.plot(
+                means.index,
+                means.values,
+                'o-',
+                color='darkblue',
+                linewidth=2,
+                markersize=8,
+                label='Mean per k',
+                zorder=5
+            )
+        
+        # Set axis labels
+        xlabel_props = {}
+        ylabel_props = {}
+        if xlabel_fontsize is not None:
+            xlabel_props['fontsize'] = xlabel_fontsize
+        if ylabel_fontsize is not None:
+            ylabel_props['fontsize'] = ylabel_fontsize
+        
+        ax.set_xlabel('Number of Predictors (k)', **xlabel_props)
+        ax.set_ylabel(f'{metric_label} Value', **ylabel_props)
+        
+        # Set title
+        title_props = {}
+        if title_fontsize is not None:
+            title_props['fontsize'] = title_fontsize
+        
+        if title is None:
+            title = f'All Subset {metric_label} Values by Number of Predictors\n(Response = X{self.response})'
+        ax.set_title(title, **title_props)
+        
+        # Set tick parameters
+        if tick_fontsize is not None:
+            ax.tick_params(axis='both', which='major', labelsize=tick_fontsize)
+        
+        # Set x-axis to show only integer k values
+        ax.set_xticks(k_values)
+        ax.set_xlim(min(k_values) - 0.5, max(k_values) + 0.5)
+        
+        # Add colorbar
+        cbar = plt.colorbar(scatter, ax=ax)
+        cbar.set_label('k', fontsize=xlabel_fontsize if xlabel_fontsize else 10)
+        cbar.set_ticks(k_values)
+        
+        # Add legend
+        legend_props = {'loc': 'best'}
+        if legend_fontsize is not None:
+            legend_props['fontsize'] = legend_fontsize
+        ax.legend(**legend_props)
+        
+        # Add grid for better readability
+        ax.grid(True, alpha=0.3, linestyle='--')
+        
+        plt.tight_layout()
+        
+        # Save if requested
+        if save_path:
+            save_dir = os.path.dirname(save_path)
+            if save_dir and not os.path.exists(save_dir):
+                os.makedirs(save_dir)
+            fig.savefig(save_path, dpi=dpi, bbox_inches='tight')
+        
+        return fig, ax
 
 
 @dataclass
@@ -1689,7 +1873,7 @@ class BestSubsetCCRAMResult:
         metric_name = "SCCRAM" if self.scaled else "CCRAM"
         return (
             f"BestSubsetCCRAMResult(\n"
-            f"  Optimal Predictors: ({predictors_str})\n"
+            f"  Predictors: ({predictors_str})\n"
             f"  Response: X{self.response}\n"
             f"  {metric_name}: {self.ccram:.6f}\n"
             f"  Number of Predictors (k): {self.k}\n"
@@ -1708,11 +1892,25 @@ class BestSubsetCCRAMResult:
         predictors_str = ', '.join([f'X{p}' for p in self.predictors])
         metric_name = "SCCRAM" if self.scaled else "CCRAM"
         return pd.DataFrame({
-            'metric': ['Optimal Predictors', 'Response', metric_name, 'Number of Predictors (k)', 
+            'metric': ['Predictors', 'Response', metric_name, 'Number of Predictors (k)', 
                       'Rank within k', 'Total subsets with k predictors'],
             'value': [f"({predictors_str})", f"X{self.response}", f"{self.ccram:.6f}", 
                      self.k, self.rank_within_k, self.total_subsets_in_k]
         })
+
+
+def _format_tuple_display(t: tuple) -> str:
+    """Format a tuple as a string without trailing comma for single elements.
+    
+    Examples:
+        (1,) -> "(1)"
+        (1, 2) -> "(1, 2)"
+        ("A",) -> "(A)"
+        ("A", "B") -> "(A, B)"
+    """
+    if len(t) == 1:
+        return f"({t[0]})"
+    return f"({', '.join(str(x) for x in t)})"
 
 
 def all_subsets_ccram(
@@ -1811,7 +2009,8 @@ def all_subsets_ccram(
             
             result_entry = {
                 'k': curr_k,
-                'predictors': predictor_combo,
+                'predictors': _format_tuple_display(predictor_combo),
+                '_predictors_tuple': predictor_combo,  # Internal: for programmatic access
                 'response': response,
                 metric_col: ccram_value
             }
@@ -1819,7 +2018,7 @@ def all_subsets_ccram(
             # Add predictor names if provided
             if variable_names is not None:
                 pred_names = tuple(variable_names.get(p, f"X{p}") for p in predictor_combo)
-                result_entry['predictor_names'] = pred_names
+                result_entry['predictor_names'] = _format_tuple_display(pred_names)
             
             results.append(result_entry)
     
@@ -1910,7 +2109,7 @@ def best_subset_ccram(
     best_row = all_results.results_df.loc[best_idx]
     
     best_k = best_row['k']
-    best_predictors = best_row['predictors']
+    best_predictors = best_row['_predictors_tuple']  # Use internal tuple for programmatic access
     best_ccram = best_row[metric_col]
     
     # Calculate rank within k

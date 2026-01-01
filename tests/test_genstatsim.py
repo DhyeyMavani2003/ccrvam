@@ -1497,7 +1497,7 @@ class TestAllSubsetsCCRAM:
         # For 2D table with response=2, only k=1 with predictor X1 is possible
         assert len(result.results_df) == 1
         assert result.results_df.iloc[0]['k'] == 1
-        assert result.results_df.iloc[0]['predictors'] == (1,)
+        assert result.results_df.iloc[0]['predictors'] == '(1)'
     
     def test_basic_2d_sccram(self, table_2d):
         """Test basic functionality with 2D table and SCCRAM."""
@@ -1525,7 +1525,7 @@ class TestAllSubsetsCCRAM:
         # Check k=2 subsets
         k2_subsets = result.results_df[result.results_df['k'] == 2]
         assert len(k2_subsets) == 1
-        assert k2_subsets.iloc[0]['predictors'] == (1, 2)
+        assert k2_subsets.iloc[0]['predictors'] == '(1, 2)'
     
     def test_basic_4d_ccram(self, table_4d):
         """Test basic functionality with 4D table and CCRAM."""
@@ -1561,8 +1561,8 @@ class TestAllSubsetsCCRAM:
         result_ccram = all_subsets_ccram(table_4d, response=4, scaled=False)
         
         # Compare same predictor combination
-        sccram_val = result.results_df[result.results_df['predictors'] == (1, 2, 3)]['sccram'].values[0]
-        ccram_val = result_ccram.results_df[result_ccram.results_df['predictors'] == (1, 2, 3)]['ccram'].values[0]
+        sccram_val = result.results_df[result.results_df['predictors'] == '(1, 2, 3)']['sccram'].values[0]
+        ccram_val = result_ccram.results_df[result_ccram.results_df['predictors'] == '(1, 2, 3)']['ccram'].values[0]
         
         # SCCRAM and CCRAM should be different (unless variance is 1)
         assert sccram_val != ccram_val or np.isclose(sccram_val, ccram_val, rtol=0.01)
@@ -1593,7 +1593,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X2, X3, X4
         all_preds = set()
-        for preds in result_r1.results_df['predictors']:
+        for preds in result_r1.results_df['_predictors_tuple']:
             all_preds.update(preds)
         assert all_preds == {2, 3, 4}
         
@@ -1603,7 +1603,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X1, X3, X4
         all_preds = set()
-        for preds in result_r2.results_df['predictors']:
+        for preds in result_r2.results_df['_predictors_tuple']:
             all_preds.update(preds)
         assert all_preds == {1, 3, 4}
     
@@ -1616,7 +1616,7 @@ class TestAllSubsetsCCRAM:
         
         # Check that names are correctly assigned
         row_with_all = result.results_df[result.results_df['k'] == 3].iloc[0]
-        assert row_with_all['predictor_names'] == ('Age', 'Income', 'Education')
+        assert row_with_all['predictor_names'] == '(Age, Income, Education)'
     
     def test_sorting_within_k(self, table_4d):
         """Test that results are sorted by metric descending within each k."""
@@ -1784,7 +1784,7 @@ class TestBestSubsetCCRAM:
         assert 'BestSubsetCCRAMResult' in repr_str
         assert 'CCRAM:' in repr_str
         assert 'SCCRAM:' not in repr_str
-        assert 'Optimal Predictors:' in repr_str
+        assert 'Predictors:' in repr_str
         assert 'Response: X4' in repr_str
     
     def test_repr_sccram(self, table_4d):
@@ -1862,7 +1862,7 @@ class TestSubsetCCRAMConsistency:
         # Find best from all_result
         best_from_all = all_result.results_df.loc[all_result.results_df['ccram'].idxmax()]
         
-        assert best_result.predictors == best_from_all['predictors']
+        assert best_result.predictors == best_from_all['_predictors_tuple']
         assert best_result.ccram == best_from_all['ccram']
     
     def test_scaled_consistency(self, table_4d):
@@ -1903,7 +1903,7 @@ class TestSubsetCCRAMEdgeCases:
         result = all_subsets_ccram(table_2d, response=1)
         
         assert len(result.results_df) == 1
-        assert result.results_df.iloc[0]['predictors'] == (2,)
+        assert result.results_df.iloc[0]['predictors'] == '(2)'
         assert result.results_df.iloc[0]['k'] == 1
     
     def test_deterministic_table(self):
@@ -1954,8 +1954,8 @@ class TestSubsetCCRAMEdgeCases:
         result = all_subsets_ccram(table_4d, response=4, variable_names=partial_names)
         
         # Should use default names for missing ones
-        row = result.results_df[result.results_df['predictors'] == (1, 2, 3)].iloc[0]
-        assert row['predictor_names'] == ('Var1', 'X2', 'Var3')
+        row = result.results_df[result.results_df['predictors'] == '(1, 2, 3)'].iloc[0]
+        assert row['predictor_names'] == '(Var1, X2, Var3)'
     
     def test_response_in_middle(self, table_4d):
         """Test with response variable in middle position."""
@@ -1963,7 +1963,202 @@ class TestSubsetCCRAMEdgeCases:
         
         # Predictors should be X1, X3, X4 (not X2)
         all_preds = set()
-        for preds in result.results_df['predictors']:
+        for preds in result.results_df['_predictors_tuple']:
             all_preds.update(preds)
         assert 2 not in all_preds
         assert all_preds == {1, 3, 4}
+
+
+class TestPlotSubsets:
+    """Tests for the plot_subsets method in SubsetCCRAMResult."""
+    
+    def test_plot_subsets_basic(self, table_4d):
+        """Test basic plot_subsets functionality."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets()
+        
+        assert fig is not None
+        assert ax is not None
+        assert plt.get_fignums()  # Check figure was created
+        plt.close('all')
+    
+    def test_plot_subsets_scaled(self, table_4d):
+        """Test plot_subsets with scaled CCRAM."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True)
+        fig, ax = result.plot_subsets()
+        
+        assert fig is not None
+        # Check title contains SCCRAM
+        assert 'SCCRAM' in ax.get_title()
+        plt.close('all')
+    
+    def test_plot_subsets_custom_figsize(self, table_4d):
+        """Test plot_subsets with custom figure size."""
+        result = all_subsets_ccram(table_4d, response=4)
+        custom_figsize = (12, 8)
+        fig, ax = result.plot_subsets(figsize=custom_figsize)
+        
+        np.testing.assert_array_almost_equal(fig.get_size_inches(), custom_figsize)
+        plt.close('all')
+    
+    def test_plot_subsets_show_options(self, table_4d):
+        """Test plot_subsets with different show options."""
+        result = all_subsets_ccram(table_4d, response=4)
+        
+        # Test with all show options disabled
+        fig, ax = result.plot_subsets(
+            show_best_per_k=False,
+            show_best_overall=False,
+            show_mean_line=False
+        )
+        assert fig is not None
+        plt.close('all')
+        
+        # Test with all show options enabled
+        fig, ax = result.plot_subsets(
+            show_best_per_k=True,
+            show_best_overall=True,
+            show_mean_line=True
+        )
+        assert fig is not None
+        plt.close('all')
+    
+    def test_plot_subsets_mean_line(self, table_4d):
+        """Test plot_subsets with mean line enabled."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets(show_mean_line=True)
+        
+        # Check that there are line plots (mean line)
+        lines = [child for child in ax.get_children() 
+                if isinstance(child, plt.Line2D) and len(child.get_xdata()) > 1]
+        assert len(lines) > 0
+        plt.close('all')
+    
+    def test_plot_subsets_font_customization(self, table_4d):
+        """Test plot_subsets font size customization."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets(
+            title_fontsize=16,
+            xlabel_fontsize=14,
+            ylabel_fontsize=12,
+            tick_fontsize=10,
+            legend_fontsize=9
+        )
+        
+        assert fig is not None
+        plt.close('all')
+    
+    def test_plot_subsets_custom_title(self, table_4d):
+        """Test plot_subsets with custom title."""
+        result = all_subsets_ccram(table_4d, response=4)
+        custom_title = "My Custom Plot Title"
+        fig, ax = result.plot_subsets(title=custom_title)
+        
+        assert ax.get_title() == custom_title
+        plt.close('all')
+    
+    def test_plot_subsets_jitter(self, table_4d):
+        """Test plot_subsets with different jitter values."""
+        result = all_subsets_ccram(table_4d, response=4)
+        
+        # Test with no jitter
+        fig, ax = result.plot_subsets(jitter=0)
+        assert fig is not None
+        plt.close('all')
+        
+        # Test with large jitter
+        fig, ax = result.plot_subsets(jitter=0.3)
+        assert fig is not None
+        plt.close('all')
+    
+    def test_plot_subsets_point_customization(self, table_4d):
+        """Test plot_subsets point customization."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets(
+            point_size=100,
+            point_alpha=0.8,
+            cmap='plasma'
+        )
+        
+        assert fig is not None
+        plt.close('all')
+    
+    def test_plot_subsets_save(self, table_4d, tmp_path):
+        """Test plot_subsets save functionality."""
+        result = all_subsets_ccram(table_4d, response=4)
+        save_path = tmp_path / "test_plot.png"
+        
+        fig, ax = result.plot_subsets(save_path=str(save_path), dpi=100)
+        
+        assert save_path.exists()
+        plt.close('all')
+    
+    def test_plot_subsets_save_creates_directory(self, table_4d, tmp_path):
+        """Test plot_subsets creates directory if needed."""
+        result = all_subsets_ccram(table_4d, response=4)
+        save_path = tmp_path / "new_subdir" / "test_plot.png"
+        
+        fig, ax = result.plot_subsets(save_path=str(save_path))
+        
+        assert save_path.exists()
+        assert save_path.parent.exists()
+        plt.close('all')
+    
+    def test_plot_subsets_2d_table(self, table_2d):
+        """Test plot_subsets with 2D table (single k value)."""
+        result = all_subsets_ccram(table_2d, response=1)
+        fig, ax = result.plot_subsets()
+        
+        assert fig is not None
+        # Only k=1 should be present
+        assert len(result.results_df['k'].unique()) == 1
+        plt.close('all')
+    
+    def test_plot_subsets_3d_table(self, table_3d):
+        """Test plot_subsets with 3D table."""
+        result = all_subsets_ccram(table_3d, response=3)
+        fig, ax = result.plot_subsets()
+        
+        assert fig is not None
+        # k=1 and k=2 should be present
+        assert set(result.results_df['k'].unique()) == {1, 2}
+        plt.close('all')
+    
+    def test_plot_subsets_kwargs(self, table_4d):
+        """Test plot_subsets with additional kwargs."""
+        result = all_subsets_ccram(table_4d, response=4)
+        fig, ax = result.plot_subsets(
+            facecolor='lightgray'
+        )
+        
+        assert fig is not None
+        plt.close('all')
+    
+    def test_plot_subsets_specific_k(self, table_4d):
+        """Test plot_subsets when results are for specific k only."""
+        result = all_subsets_ccram(table_4d, response=4, k=2)
+        fig, ax = result.plot_subsets()
+        
+        assert fig is not None
+        # Only k=2 should be present
+        assert set(result.results_df['k'].unique()) == {2}
+        plt.close('all')
+    
+    def test_plot_subsets_backward_compatibility(self, table_4d):
+        """Test that plot_subsets works with minimal arguments."""
+        result = all_subsets_ccram(table_4d, response=4)
+        
+        # Should work with no arguments
+        fig, ax = result.plot_subsets()
+        assert fig is not None
+        assert ax is not None
+        plt.close('all')
+    
+    def test_plot_subsets_different_responses(self, table_4d):
+        """Test plot_subsets with different response variables."""
+        for response in [1, 2, 3, 4]:
+            result = all_subsets_ccram(table_4d, response=response)
+            fig, ax = result.plot_subsets()
+            
+            assert f'X{response}' in ax.get_title()
+            plt.close('all')
