@@ -1642,11 +1642,6 @@ class SubsetCCRAMResult:
         Outputs
         -------
         DataFrame with top subsets sorted by (S)CCRAM value (highest first)
-        
-        Example
-        -------
-        >>> result = all_subsets_ccram(table, response=4)
-        >>> result.get_top_subsets(top=3)  # Get 3 best subsets overall
         """
         result = self._results_df_full.nlargest(top, self.metric_column).reset_index(drop=True)
         return self._filter_display_columns(result)
@@ -1671,18 +1666,6 @@ class SubsetCCRAMResult:
         -------
         DataFrame with top subsets for each k, sorted by k ascending and (S)CCRAM 
         descending within each k. Includes all columns from results_df.
-        
-        Example
-        -------
-        >>> # With 5 predictors (D=5), get top 3 subsets for each k
-        >>> result = all_subsets_ccram(table, response=6)  # 6-dim table, predict X6
-        >>> top_per_k = result.get_top_subsets_per_k(top=3)
-        >>> # Returns:
-        >>> # - For k=1: top 3 single predictors (or all 5 if fewer requested)
-        >>> # - For k=2: top 3 pairs from C(5,2)=10 possible pairs
-        >>> # - For k=3: top 3 triplets from C(5,3)=10 possible triplets
-        >>> # - For k=4: top 3 from C(5,4)=5 possible (returns all 5 since 5 > 3 is False)
-        >>> # - For k=5: top 1 from C(5,5)=1 possible (only 1 exists)
         """
         col = self.metric_column
         
@@ -1773,12 +1756,6 @@ class SubsetCCRAMResult:
         Outputs
         -------
         Tuple of (Figure, Axes) matplotlib objects
-        
-        Example
-        -------
-        >>> result = all_subsets_ccram(table, response=4)
-        >>> fig, ax = result.plot_subsets()
-        >>> plt.show()
         """
         if figsize is None:
             figsize = (10, 6)
@@ -1923,14 +1900,7 @@ class BestSubsetCCRAMResult:
 
 
 def _format_tuple_display(t: tuple) -> str:
-    """Format a tuple as a string without trailing comma for single elements.
-    
-    Examples:
-        (1,) -> "(1)"
-        (1, 2) -> "(1, 2)"
-        ("A",) -> "(A)"
-        ("A", "B") -> "(A, B)"
-    """
+    """Format a tuple as a string without trailing comma for single elements."""
     if len(t) == 1:
         return f"({t[0]})"
     return f"({', '.join(str(x) for x in t)})"
@@ -1963,31 +1933,19 @@ def all_subsets_ccram(
     Outputs
     -------
     SubsetCCRAMResult object containing:
-        - results_df: DataFrame with columns [k, predictors, response, ccram/sccram] 
-                     (column name is 'ccram' when scaled=False, 'sccram' when scaled=True)
-                     (and optionally predictor_names), sorted by k ascending 
-                     and metric value descending within each k
-        - response: The response variable index
-        - n_dimensions: Total number of dimensions
-        - scaled: Whether scaled CCRAM was used
+    
+    - `results_df`: DataFrame with columns [k, predictors, response, ccram/sccram] 
+        (column name is 'ccram' when scaled=False, 'sccram' when scaled=True)
+        (and optionally predictor_names), sorted by k ascending 
+         and metric value descending within each k
+    - `response`: The response variable index
+    - `n_dimensions`: Total number of dimensions
+    - `scaled`: Whether scaled CCRAM was used
     
     Warnings/Errors
     --------------
     - `ValueError` : If response axis is out of bounds
     - `ValueError` : If k is specified but invalid (k < 1 or k >= ndim)
-    
-    Example
-    -------
-    >>> import numpy as np
-    >>> # Create a 4-dimensional contingency table (3x3x3x3)
-    >>> table = np.random.randint(1, 10, size=(3, 3, 3, 3))
-    >>> # Calculate CCRAM for all subsets predicting X4
-    >>> result = all_subsets_ccram(table, response=4)
-    >>> print(result.results_df)
-    >>> # Calculate SCCRAM for all subsets predicting X4
-    >>> result_scaled = all_subsets_ccram(table, response=4, scaled=True)
-    >>> # Get only 2-predictor subsets
-    >>> result_k2 = all_subsets_ccram(table, response=4, k=2)
     """
     ndim = contingency_table.ndim
     
@@ -2101,19 +2059,6 @@ def best_subset_ccram(
     --------------
     - `ValueError` : If response axis is out of bounds
     - `ValueError` : If k is specified but invalid (k < 1 or k >= ndim)
-    
-    Example
-    -------
-    >>> import numpy as np
-    >>> # Create a 4-dimensional contingency table (3x3x3x3)
-    >>> table = np.random.randint(1, 10, size=(3, 3, 3, 3))
-    >>> # Find the best predictor subset for predicting X4 (using CCRAM)
-    >>> best = best_subset_ccram(table, response=4)
-    >>> print(best)
-    >>> # Find the best predictor subset using SCCRAM
-    >>> best_scaled = best_subset_ccram(table, response=4, scaled=True)
-    >>> # Find the best 2-predictor subset
-    >>> best_k2 = best_subset_ccram(table, response=4, k=2)
     """
     # Get all subset results
     all_results = all_subsets_ccram(
