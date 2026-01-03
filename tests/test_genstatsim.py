@@ -1490,6 +1490,7 @@ class TestAllSubsetsCCRAM:
         # Check DataFrame columns
         assert 'k' in result.results_df.columns
         assert 'predictors' in result.results_df.columns
+        assert 'pred_cate' in result.results_df.columns
         assert 'response' in result.results_df.columns
         assert 'ccram' in result.results_df.columns
         assert 'sccram' not in result.results_df.columns
@@ -1498,6 +1499,8 @@ class TestAllSubsetsCCRAM:
         assert len(result.results_df) == 1
         assert result.results_df.iloc[0]['k'] == 1
         assert result.results_df.iloc[0]['predictors'] == '(1)'
+        # table_2d is 3x3, so X1 has 3 categories
+        assert result.results_df.iloc[0]['pred_cate'] == (3,)
     
     def test_basic_2d_sccram(self, table_2d):
         """Test basic functionality with 2D table and SCCRAM."""
@@ -1762,6 +1765,123 @@ class TestAllSubsetsCCRAM:
         
         assert all(result.results_df['sccram'] >= 0)
         assert all(result.results_df['sccram'] <= 1)
+    
+    def test_pred_cate_column_4d(self, table_4d):
+        """Test pred_cate column values for 4D table."""
+        # table_4d has shape (2, 3, 2, 6)
+        result = all_subsets_ccram(table_4d, response=4, scaled=False)
+        
+        # Check that pred_cate column exists
+        assert 'pred_cate' in result.results_df.columns
+        
+        # Check specific values for k=1 predictors
+        # X1 has 2 categories, X2 has 3, X3 has 2
+        k1_df = result.results_df[result.results_df['k'] == 1]
+        
+        x1_row = k1_df[k1_df['predictors'] == '(1)']
+        assert len(x1_row) == 1
+        assert x1_row.iloc[0]['pred_cate'] == (2,)
+        
+        x2_row = k1_df[k1_df['predictors'] == '(2)']
+        assert len(x2_row) == 1
+        assert x2_row.iloc[0]['pred_cate'] == (3,)
+        
+        x3_row = k1_df[k1_df['predictors'] == '(3)']
+        assert len(x3_row) == 1
+        assert x3_row.iloc[0]['pred_cate'] == (2,)
+        
+        # Check k=2 predictor combinations
+        k2_df = result.results_df[result.results_df['k'] == 2]
+        
+        x12_row = k2_df[k2_df['predictors'] == '(1, 2)']
+        assert len(x12_row) == 1
+        assert x12_row.iloc[0]['pred_cate'] == (2, 3)
+        
+        x13_row = k2_df[k2_df['predictors'] == '(1, 3)']
+        assert len(x13_row) == 1
+        assert x13_row.iloc[0]['pred_cate'] == (2, 2)
+        
+        x23_row = k2_df[k2_df['predictors'] == '(2, 3)']
+        assert len(x23_row) == 1
+        assert x23_row.iloc[0]['pred_cate'] == (3, 2)
+        
+        # Check k=3 predictor combination
+        k3_df = result.results_df[result.results_df['k'] == 3]
+        x123_row = k3_df[k3_df['predictors'] == '(1, 2, 3)']
+        assert len(x123_row) == 1
+        assert x123_row.iloc[0]['pred_cate'] == (2, 3, 2)
+    
+    def test_pred_cate_is_tuple_for_computation(self, table_4d):
+        """Test that pred_cate is a tuple that can be used directly for computation."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=False)
+        
+        # pred_cate should be a tuple, not a string
+        k3_row = result.results_df[result.results_df['k'] == 3].iloc[0]
+        pred_cate = k3_row['pred_cate']
+        
+        assert isinstance(pred_cate, tuple)
+        assert pred_cate == (2, 3, 2)
+        
+        # Verify we can compute sum and product directly without parsing
+        assert sum(pred_cate) == 7
+        assert np.prod(pred_cate) == 12
+        
+        # Verify this works with apply() for creating new columns
+        df = result.results_df.copy()
+        df['sum_cate'] = df['pred_cate'].apply(sum)
+        df['prod_cate'] = df['pred_cate'].apply(np.prod)
+        
+        # Check computed values
+        k3_computed = df[df['k'] == 3].iloc[0]
+        assert k3_computed['sum_cate'] == 7
+        assert k3_computed['prod_cate'] == 12
+    
+    def test_get_results_with_penalties(self, table_4d):
+        """Test get_results_with_penalties method returns correct penalty columns."""
+        result = all_subsets_ccram(table_4d, response=4, scaled=True, 
+                                   variable_names={1: 'A', 2: 'B', 3: 'C', 4: 'D'})
+        
+        df = result.get_results_with_penalties()
+        
+        # Check that penalty columns exist
+        assert 'sum_cate' in df.columns
+        assert 'prod_cate' in df.columns
+        
+        # Check that original columns are preserved
+        assert 'k' in df.columns
+        assert 'predictors' in df.columns
+        assert 'pred_cate' in df.columns
+        assert 'response' in df.columns
+        assert 'sccram' in df.columns
+        assert 'predictor_names' in df.columns
+        
+        # Internal columns should NOT be visible
+        assert '_predictors_tuple' not in df.columns
+        
+        # Verify specific values for k=1 predictors (table_4d shape is (2, 3, 2, 6))
+        # X1 has 2 categories, X2 has 3, X3 has 2
+        k1_df = df[df['k'] == 1]
+        
+        x1_row = k1_df[k1_df['predictors'] == '(1)'].iloc[0]
+        assert x1_row['sum_cate'] == 2
+        assert x1_row['prod_cate'] == 2
+        
+        x2_row = k1_df[k1_df['predictors'] == '(2)'].iloc[0]
+        assert x2_row['sum_cate'] == 3
+        assert x2_row['prod_cate'] == 3
+        
+        # Verify k=2 values
+        k2_df = df[df['k'] == 2]
+        
+        x12_row = k2_df[k2_df['predictors'] == '(1, 2)'].iloc[0]
+        assert x12_row['sum_cate'] == 5  # 2 + 3
+        assert x12_row['prod_cate'] == 6  # 2 * 3
+        
+        # Verify k=3 values
+        k3_df = df[df['k'] == 3]
+        x123_row = k3_df.iloc[0]
+        assert x123_row['sum_cate'] == 7   # 2 + 3 + 2
+        assert x123_row['prod_cate'] == 12  # 2 * 3 * 2
 
 
 class TestBestSubsetCCRAM:

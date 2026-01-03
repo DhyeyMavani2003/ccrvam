@@ -1716,6 +1716,36 @@ class SubsetCCRAMResult:
         summary.columns = [f'max_{col}', f'mean_{col}', f'min_{col}', 'n_subsets']
         return summary.reset_index()
     
+    def get_results_with_penalties(self) -> pd.DataFrame:
+        """
+        Get results DataFrame with penalty-related columns for predictor categories.
+        
+        This method computes additional columns that can be useful for penalizing
+        (S)CCRAM values based on the number of predictor categories, since (S)CCRAM
+        is non-decreasing as the number of predictors increases.
+        
+        Outputs
+        -------
+        DataFrame with all public columns plus:
+        - `sum_cate`: Sum of categories across all predictors in the subset
+        - `prod_cate`: Product of categories across all predictors in the subset
+        
+        Example
+        -------
+        >>> result = all_subsets_ccram(table, response=4, scaled=True)
+        >>> df = result.get_results_with_penalties()
+        >>> # Use sum_cate or prod_cate to compute penalized scores
+        >>> df['penalized_sccram'] = df['sccram'] / df['sum_cate']
+        """
+        # Start with the display-ready DataFrame
+        df = self.results_df.copy()
+        
+        # Compute penalty columns directly from pred_cate (which is already a tuple)
+        df['sum_cate'] = df['pred_cate'].apply(sum)
+        df['prod_cate'] = df['pred_cate'].apply(np.prod)
+        
+        return df
+    
     def plot_subsets(
         self,
         figsize: Optional[Tuple[int, int]] = None,
@@ -1934,10 +1964,13 @@ def all_subsets_ccram(
     -------
     SubsetCCRAMResult object containing:
     
-    - `results_df`: DataFrame with columns [k, predictors, response, ccram/sccram] 
+    - `results_df`: DataFrame with columns [k, predictors, pred_cate, response, ccram/sccram] 
         (column name is 'ccram' when scaled=False, 'sccram' when scaled=True)
         (and optionally predictor_names), sorted by k ascending 
-         and metric value descending within each k
+         and metric value descending within each k.
+        The `pred_cate` column contains the number of categories for each predictor
+        in the subset, formatted as a tuple string (e.g., "(2, 3)" for a 2-predictor
+        subset where the first predictor has 2 categories and the second has 3).
     - `response`: The response variable index
     - `n_dimensions`: Total number of dimensions
     - `scaled`: Whether scaled CCRAM was used
@@ -1978,6 +2011,9 @@ def all_subsets_ccram(
     # Collect results
     results = []
     
+    # Get shape of contingency table for extracting number of categories
+    table_shape = contingency_table.shape
+    
     for curr_k in k_values:
         # Generate all combinations of curr_k predictors
         for predictor_combo in itertools.combinations(all_predictors, curr_k):
@@ -1988,10 +2024,14 @@ def all_subsets_ccram(
                 scaled=scaled
             )
             
+            # Get number of categories for each predictor (1-indexed to 0-indexed for shape)
+            pred_categories = tuple(table_shape[p-1] for p in predictor_combo)
+            
             result_entry = {
                 'k': curr_k,
                 'predictors': _format_tuple_display(predictor_combo),
                 '_predictors_tuple': predictor_combo,  # Internal: for programmatic access
+                'pred_cate': pred_categories,  # Actual tuple for easy computation
                 'response': response,
                 metric_col: ccram_value
             }
