@@ -2029,8 +2029,7 @@ def all_subsets_ccram(
             
             result_entry = {
                 'k': curr_k,
-                'predictors': _format_tuple_display(predictor_combo),
-                '_predictors_tuple': predictor_combo,  # Internal: for programmatic access
+                'predictors': predictor_combo,  # Actual tuple for easy use
                 'pred_cate': pred_categories,  # Actual tuple for easy computation
                 'response': response,
                 metric_col: ccram_value
@@ -2117,7 +2116,7 @@ def best_subset_ccram(
     best_row = all_results._results_df_full.loc[best_idx]
     
     best_k = best_row['k']
-    best_predictors = best_row['_predictors_tuple']  # Use internal tuple for programmatic access
+    best_predictors = best_row['predictors']  # Already a tuple
     best_ccram = best_row[metric_col]
     
     # Calculate rank within k

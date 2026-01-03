@@ -1498,7 +1498,7 @@ class TestAllSubsetsCCRAM:
         # For 2D table with response=2, only k=1 with predictor X1 is possible
         assert len(result.results_df) == 1
         assert result.results_df.iloc[0]['k'] == 1
-        assert result.results_df.iloc[0]['predictors'] == '(1)'
+        assert result.results_df.iloc[0]['predictors'] == (1,)
         # table_2d is 3x3, so X1 has 3 categories
         assert result.results_df.iloc[0]['pred_cate'] == (3,)
     
@@ -1528,7 +1528,7 @@ class TestAllSubsetsCCRAM:
         # Check k=2 subsets
         k2_subsets = result.results_df[result.results_df['k'] == 2]
         assert len(k2_subsets) == 1
-        assert k2_subsets.iloc[0]['predictors'] == '(1, 2)'
+        assert k2_subsets.iloc[0]['predictors'] == (1, 2)
     
     def test_basic_4d_ccram(self, table_4d):
         """Test basic functionality with 4D table and CCRAM."""
@@ -1564,8 +1564,8 @@ class TestAllSubsetsCCRAM:
         result_ccram = all_subsets_ccram(table_4d, response=4, scaled=False)
         
         # Compare same predictor combination
-        sccram_val = result.results_df[result.results_df['predictors'] == '(1, 2, 3)']['sccram'].values[0]
-        ccram_val = result_ccram.results_df[result_ccram.results_df['predictors'] == '(1, 2, 3)']['ccram'].values[0]
+        sccram_val = result.results_df[result.results_df['predictors'] == (1, 2, 3)]['sccram'].values[0]
+        ccram_val = result_ccram.results_df[result_ccram.results_df['predictors'] == (1, 2, 3)]['ccram'].values[0]
         
         # SCCRAM and CCRAM should be different (unless variance is 1)
         assert sccram_val != ccram_val or np.isclose(sccram_val, ccram_val, rtol=0.01)
@@ -1596,7 +1596,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X2, X3, X4
         all_preds = set()
-        for preds in result_r1._results_df_full['_predictors_tuple']:
+        for preds in result_r1.results_df['predictors']:
             all_preds.update(preds)
         assert all_preds == {2, 3, 4}
         
@@ -1606,7 +1606,7 @@ class TestAllSubsetsCCRAM:
         
         # Predictors should be X1, X3, X4
         all_preds = set()
-        for preds in result_r2._results_df_full['_predictors_tuple']:
+        for preds in result_r2.results_df['predictors']:
             all_preds.update(preds)
         assert all_preds == {1, 3, 4}
     
@@ -1778,36 +1778,36 @@ class TestAllSubsetsCCRAM:
         # X1 has 2 categories, X2 has 3, X3 has 2
         k1_df = result.results_df[result.results_df['k'] == 1]
         
-        x1_row = k1_df[k1_df['predictors'] == '(1)']
+        x1_row = k1_df[k1_df['predictors'] == (1,)]
         assert len(x1_row) == 1
         assert x1_row.iloc[0]['pred_cate'] == (2,)
         
-        x2_row = k1_df[k1_df['predictors'] == '(2)']
+        x2_row = k1_df[k1_df['predictors'] == (2,)]
         assert len(x2_row) == 1
         assert x2_row.iloc[0]['pred_cate'] == (3,)
         
-        x3_row = k1_df[k1_df['predictors'] == '(3)']
+        x3_row = k1_df[k1_df['predictors'] == (3,)]
         assert len(x3_row) == 1
         assert x3_row.iloc[0]['pred_cate'] == (2,)
         
         # Check k=2 predictor combinations
         k2_df = result.results_df[result.results_df['k'] == 2]
         
-        x12_row = k2_df[k2_df['predictors'] == '(1, 2)']
+        x12_row = k2_df[k2_df['predictors'] == (1, 2)]
         assert len(x12_row) == 1
         assert x12_row.iloc[0]['pred_cate'] == (2, 3)
         
-        x13_row = k2_df[k2_df['predictors'] == '(1, 3)']
+        x13_row = k2_df[k2_df['predictors'] == (1, 3)]
         assert len(x13_row) == 1
         assert x13_row.iloc[0]['pred_cate'] == (2, 2)
         
-        x23_row = k2_df[k2_df['predictors'] == '(2, 3)']
+        x23_row = k2_df[k2_df['predictors'] == (2, 3)]
         assert len(x23_row) == 1
         assert x23_row.iloc[0]['pred_cate'] == (3, 2)
         
         # Check k=3 predictor combination
         k3_df = result.results_df[result.results_df['k'] == 3]
-        x123_row = k3_df[k3_df['predictors'] == '(1, 2, 3)']
+        x123_row = k3_df[k3_df['predictors'] == (1, 2, 3)]
         assert len(x123_row) == 1
         assert x123_row.iloc[0]['pred_cate'] == (2, 3, 2)
     
@@ -1855,25 +1855,25 @@ class TestAllSubsetsCCRAM:
         assert 'sccram' in df.columns
         assert 'predictor_names' in df.columns
         
-        # Internal columns should NOT be visible
-        assert '_predictors_tuple' not in df.columns
+        # predictors column should be present (now a tuple, not string)
+        assert 'predictors' in df.columns
         
         # Verify specific values for k=1 predictors (table_4d shape is (2, 3, 2, 6))
         # X1 has 2 categories, X2 has 3, X3 has 2
         k1_df = df[df['k'] == 1]
         
-        x1_row = k1_df[k1_df['predictors'] == '(1)'].iloc[0]
+        x1_row = k1_df[k1_df['predictors'] == (1,)].iloc[0]
         assert x1_row['sum_cate'] == 2
         assert x1_row['prod_cate'] == 2
         
-        x2_row = k1_df[k1_df['predictors'] == '(2)'].iloc[0]
+        x2_row = k1_df[k1_df['predictors'] == (2,)].iloc[0]
         assert x2_row['sum_cate'] == 3
         assert x2_row['prod_cate'] == 3
         
         # Verify k=2 values
         k2_df = df[df['k'] == 2]
         
-        x12_row = k2_df[k2_df['predictors'] == '(1, 2)'].iloc[0]
+        x12_row = k2_df[k2_df['predictors'] == (1, 2)].iloc[0]
         assert x12_row['sum_cate'] == 5  # 2 + 3
         assert x12_row['prod_cate'] == 6  # 2 * 3
         
@@ -2035,7 +2035,7 @@ class TestSubsetCCRAMConsistency:
         # Find best from all_result
         best_from_all = all_result._results_df_full.loc[all_result._results_df_full['ccram'].idxmax()]
         
-        assert best_result.predictors == best_from_all['_predictors_tuple']
+        assert best_result.predictors == best_from_all['predictors']
         assert best_result.ccram == best_from_all['ccram']
     
     def test_scaled_consistency(self, table_4d):
@@ -2076,7 +2076,7 @@ class TestSubsetCCRAMEdgeCases:
         result = all_subsets_ccram(table_2d, response=1)
         
         assert len(result.results_df) == 1
-        assert result.results_df.iloc[0]['predictors'] == '(2)'
+        assert result.results_df.iloc[0]['predictors'] == (2,)
         assert result.results_df.iloc[0]['k'] == 1
     
     def test_deterministic_table(self):
@@ -2127,7 +2127,7 @@ class TestSubsetCCRAMEdgeCases:
         result = all_subsets_ccram(table_4d, response=4, variable_names=partial_names)
         
         # Should use default names for missing ones
-        row = result.results_df[result.results_df['predictors'] == '(1, 2, 3)'].iloc[0]
+        row = result.results_df[result.results_df['predictors'] == (1, 2, 3)].iloc[0]
         assert row['predictor_names'] == '(Var1, X2, Var3)'
     
     def test_response_in_middle(self, table_4d):
@@ -2136,7 +2136,7 @@ class TestSubsetCCRAMEdgeCases:
         
         # Predictors should be X1, X3, X4 (not X2)
         all_preds = set()
-        for preds in result._results_df_full['_predictors_tuple']:
+        for preds in result.results_df['predictors']:
             all_preds.update(preds)
         assert 2 not in all_preds
         assert all_preds == {1, 3, 4}
